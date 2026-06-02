@@ -53,8 +53,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "מערכת הזמנות צוותים" },
-      { name: "description", content: "מערכת ניהול הזמנות וצוותים" },
+      { title: "מערכת הזמנות פלוגתיות" },
+      { name: "description", content: "מערכת ניהול הזמנות פלוגתיות" },
+      { property: "og:title", content: "מערכת הזמנות פלוגתיות" },
+      { name: "twitter:title", content: "מערכת הזמנות פלוגתיות" },
+      { property: "og:description", content: "מערכת ניהול הזמנות פלוגתיות" },
+      { name: "twitter:description", content: "מערכת ניהול הזמנות פלוגתיות" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d7dacdf-4d7e-4614-97cb-671d6085618f/id-preview-b238fb37--6e5eae59-d2b9-48fc-8063-ce2ddea47106.lovable.app-1780423315444.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2d7dacdf-4d7e-4614-97cb-671d6085618f/id-preview-b238fb37--6e5eae59-d2b9-48fc-8063-ce2ddea47106.lovable.app-1780423315444.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
