@@ -177,8 +177,19 @@ export const listProductsAdmin = createServerFn({ method: "GET" })
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin.from("products").select("*").order("name");
-    return data ?? [];
+    const resolved = await Promise.all((data ?? []).map(async (p) => ({
+      ...p,
+      image_url: await resolveImage(supabaseAdmin, p.image_url),
+      _raw_image_url: p.image_url, // for editing
+    })));
+    return resolved;
   });
+
+// image_url accepts: empty, http(s)://..., or "storage:<path>"
+const imageUrlSchema = z.string().max(2000).optional().nullable().refine(
+  (v) => !v || v.startsWith("http://") || v.startsWith("https://") || v.startsWith("storage:"),
+  "כתובת תמונה לא תקינה"
+);
 
 const productSchema = z.object({
   id: z.string().uuid().optional(),
@@ -187,7 +198,7 @@ const productSchema = z.object({
   price: z.number().min(0).max(10_000_000),
   stock: z.number().int().min(0).max(10_000_000),
   category: z.string().max(100).optional().nullable(),
-  image_url: z.string().url().max(2000).optional().nullable().or(z.literal("")),
+  image_url: imageUrlSchema,
   active: z.boolean(),
 });
 
@@ -206,6 +217,27 @@ export const upsertProduct = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
     return { ok: true };
+  });
+
+export const uploadProductImage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    filename: z.string().min(1).max(200),
+    content_type: z.string().min(1).max(100),
+    data_base64: z.string().min(1).max(15_000_000),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ext = (data.filename.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const bytes = Buffer.from(data.data_base64, "base64");
+    const { error } = await supabaseAdmin.storage.from(BUCKET).upload(path, bytes, {
+      contentType: data.content_type, upsert: false,
+    });
+    if (error) throw new Error(error.message);
+    const { data: signed } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(path, SIGN_TTL);
+    return { storage_ref: `storage:${path}`, preview_url: signed?.signedUrl ?? null };
   });
 
 export const deleteProduct = createServerFn({ method: "POST" })
