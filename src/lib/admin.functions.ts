@@ -332,11 +332,90 @@ export const updateOrderStatus = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("orders").update({ status: data.status }).eq("id", data.id);
     if (error) throw new Error(error.message);
 
-    // Send SMS when status becomes "ready"
-    if (data.status === "ready" && prev.contact_phone) {
-      const { sendSms } = await import("./sms.server");
+    // Notify when status becomes "ready"
+    if (data.status === "ready") {
       const teamName = (prev as any).teams?.name ?? "";
-      await sendSms(prev.contact_phone, `ההזמנה של ${teamName} מוכנה לאיסוף. סה"כ: ₪${prev.total}`);
+      const text = `ההזמנה של ${teamName} מוכנה לאיסוף. סה"כ: ₪${prev.total}`;
+      if (prev.contact_phone) {
+        const { sendSms } = await import("./sms.server");
+        await sendSms(prev.contact_phone, text).catch((e) => console.warn("[sms] failed:", e?.message));
+      }
+      const { sendPushToTeam } = await import("./push.server");
+      await sendPushToTeam(prev.team_id, {
+        title: "ההזמנה מוכנה לאיסוף 🎉",
+        body: text,
+        url: "/shop/orders",
+      }).catch((e) => console.warn("[push] failed:", e?.message));
     }
     return { ok: true };
+  });
+
+const orderItemEditSchema = z.object({
+  id: z.string().uuid().optional(),
+  product_id: z.string().uuid().nullable().optional(),
+  name: z.string().min(1).max(200),
+  price: z.number().min(0).max(10_000_000),
+  quantity: z.number().int().min(1).max(999),
+});
+
+export const updateOrderItems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    order_id: z.string().uuid(),
+    items: z.array(orderItemEditSchema).min(1).max(200),
+    notes: z.string().max(500).optional().nullable(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: prev } = await supabaseAdmin
+      .from("orders").select("*, order_items(*)").eq("id", data.order_id).single();
+    if (!prev) throw new Error("הזמנה לא נמצאה");
+
+    const wasStockDeducted = prev.status !== "awaiting_approval" && prev.status !== "cancelled";
+
+    // Restore stock for previous items if needed
+    if (wasStockDeducted) {
+      for (const it of prev.order_items as any[]) {
+        if (!it.product_id) continue;
+        const { data: prod } = await supabaseAdmin.from("products").select("stock").eq("id", it.product_id).maybeSingle();
+        if (prod) await supabaseAdmin.from("products").update({ stock: prod.stock + it.quantity }).eq("id", it.product_id);
+      }
+    }
+
+    // Delete all old items
+    await supabaseAdmin.from("order_items").delete().eq("order_id", data.order_id);
+
+    // Insert new items + recompute total
+    let total = 0;
+    const newItems = data.items.map(it => {
+      total += Number(it.price) * it.quantity;
+      return {
+        order_id: data.order_id,
+        product_id: it.product_id ?? null,
+        name: it.name,
+        price: it.price,
+        quantity: it.quantity,
+      };
+    });
+    const { error: insErr } = await supabaseAdmin.from("order_items").insert(newItems);
+    if (insErr) throw new Error(insErr.message);
+
+    // Re-deduct stock if needed
+    if (wasStockDeducted) {
+      for (const it of newItems) {
+        if (!it.product_id) continue;
+        const { data: prod } = await supabaseAdmin.from("products").select("stock").eq("id", it.product_id).maybeSingle();
+        if (prod) await supabaseAdmin.from("products").update({ stock: Math.max(0, prod.stock - it.quantity) }).eq("id", it.product_id);
+      }
+    }
+
+    const { error: updErr } = await supabaseAdmin.from("orders").update({
+      total,
+      notes: data.notes ?? prev.notes,
+    }).eq("id", data.order_id);
+    if (updErr) throw new Error(updErr.message);
+
+    return { ok: true, total };
   });
