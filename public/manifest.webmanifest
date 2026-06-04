@@ -1,0 +1,16 @@
+{
+  "name": "מערכת הזמנות צוותים",
+  "short_name": "הזמנות",
+  "description": "מערכת הזמנות לצוותים",
+  "start_url": "/shop",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "any", "type": "image/x-icon" }
+  ]
+}

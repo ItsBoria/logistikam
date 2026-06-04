@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getShopData, placeOrder } from "@/lib/team.functions";
-import { getVapidPublicKey, subscribePush, unsubscribePush } from "@/lib/push.functions";
+import { PushToggle } from "@/components/push-toggle";
+
 import { getTeamSession, setTeamSession } from "@/lib/team-session";
 import { VAT_LABEL, formatCurrency } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, Bell, BellOff, ClipboardList } from "lucide-react";
+import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -25,15 +26,6 @@ export const Route = createFileRoute("/shop/")({
 
 type CartMap = Record<string, number>;
 
-function urlBase64ToUint8Array(base64String: string) {
-  const clean = (base64String || "").trim().replace(/\s+/g, "").replace(/[^A-Za-z0-9_\-=+/]/g, "");
-  const padding = "=".repeat((4 - (clean.length % 4)) % 4);
-  const base64 = (clean + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const arr = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i);
-  return arr;
-}
 
 function Shop() {
   const navigate = useNavigate();
@@ -42,9 +34,6 @@ function Shop() {
 
   const fetchShop = useServerFn(getShopData);
   const orderFn = useServerFn(placeOrder);
-  const vapidFn = useServerFn(getVapidPublicKey);
-  const subscribeFn = useServerFn(subscribePush);
-  const unsubscribeFn = useServerFn(unsubscribePush);
 
   const { data, isLoading, refetch } = useQuery({
     enabled: !!session,
@@ -64,24 +53,6 @@ function Shop() {
   const [category, setCategory] = useState("all");
   const [inStockOnly, setInStockOnly] = useState(false);
 
-  // push
-  const [pushOn, setPushOn] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
-  const pushSupported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
-  const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isStandalone = typeof window !== "undefined" && ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || (navigator as any).standalone === true);
-  const iosNeedsInstall = isIOS && !isStandalone && !pushSupported;
-
-  useEffect(() => { if (session?.contact_phone) setPhone(session.contact_phone); }, [session?.contact_phone]);
-
-  useEffect(() => {
-    if (!pushSupported) return;
-    navigator.serviceWorker.getRegistration("/sw.js").then(async (reg) => {
-      if (!reg) return;
-      const sub = await reg.pushManager.getSubscription();
-      setPushOn(!!sub);
-    });
-  }, [pushSupported]);
 
   const products = data?.products ?? [];
 
@@ -130,52 +101,6 @@ function Shop() {
     } finally { setPlacing(false); }
   }
 
-  async function enablePush() {
-    if (!pushSupported) { toast.error("הדפדפן לא תומך בהתראות Push"); return; }
-    setPushBusy(true);
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") { toast.error("ההרשאה נדחתה"); return; }
-      const { key } = await vapidFn();
-      if (!key) { toast.error("התראות אינן מוגדרות במערכת"); return; }
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(key),
-        });
-      }
-      const json: any = sub.toJSON();
-      await subscribeFn({ data: {
-        pin: session!.pin,
-        endpoint: sub.endpoint,
-        p256dh: json.keys.p256dh,
-        auth: json.keys.auth,
-      } });
-      setPushOn(true);
-      toast.success("התראות הופעלו");
-    } catch (e: any) {
-      toast.error(e.message || "שגיאה בהפעלת התראות");
-    } finally { setPushBusy(false); }
-  }
-
-  async function disablePush() {
-    setPushBusy(true);
-    try {
-      const reg = await navigator.serviceWorker.getRegistration("/sw.js");
-      const sub = await reg?.pushManager.getSubscription();
-      if (sub) {
-        await unsubscribeFn({ data: { endpoint: sub.endpoint } });
-        await sub.unsubscribe();
-      }
-      setPushOn(false);
-      toast.success("התראות כובו");
-    } catch (e: any) {
-      toast.error(e.message || "שגיאה");
-    } finally { setPushBusy(false); }
-  }
 
   function logout() { setTeamSession(null); navigate({ to: "/" }); }
 
@@ -196,15 +121,7 @@ function Shop() {
             <Button asChild variant="outline" size="sm">
               <Link to="/shop/orders"><ClipboardList className="w-4 h-4 ml-2" /> ההזמנות שלי</Link>
             </Button>
-            {pushSupported ? (
-              pushOn
-                ? <Button variant="outline" size="sm" onClick={disablePush} disabled={pushBusy}><BellOff className="w-4 h-4 ml-2" /> כבה התראות</Button>
-                : <Button variant="outline" size="sm" onClick={enablePush} disabled={pushBusy}><Bell className="w-4 h-4 ml-2" /> הפעל התראות</Button>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => toast.info(iosNeedsInstall ? "ב‑iPhone יש להוסיף את האתר למסך הבית (שתף → הוסף למסך הבית) ולפתוח משם, ואז להפעיל התראות" : "הדפדפן שלך לא תומך בהתראות Push")}>
-                <Bell className="w-4 h-4 ml-2" /> הפעל התראות
-              </Button>
-            )}
+            <PushToggle pin={session!.pin} />
             <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
               <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
             </Button>

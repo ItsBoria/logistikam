@@ -2,9 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 export const getVapidPublicKey = createServerFn({ method: "GET" }).handler(async () => {
-  const raw = (process.env.VAPID_PUBLIC_KEY || "").trim().replace(/^["']|["']$/g, "");
-  // keep only base64url chars
-  const key = raw.replace(/[^A-Za-z0-9_\-]/g, "");
+  const key = (process.env.VAPID_PUBLIC_KEY || "").trim();
+  if (!key) return { key: "", error: "VAPID_PUBLIC_KEY לא הוגדר בשרת" };
+  if (!/^[A-Za-z0-9_-]+$/.test(key)) {
+    return { key: "", error: "VAPID_PUBLIC_KEY מכיל תווים לא חוקיים" };
+  }
   return { key };
 });
 
@@ -39,4 +41,20 @@ export const unsubscribePush = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("push_subscriptions").delete().eq("endpoint", data.endpoint);
     return { ok: true };
+  });
+
+export const sendTestPush = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ pin: z.string().min(1).max(32) }).parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: team } = await supabaseAdmin
+      .from("teams").select("id, name").eq("pin", data.pin.trim()).maybeSingle();
+    if (!team) throw new Error("צוות לא תקין");
+    const { sendPushToTeam } = await import("@/lib/push.server");
+    const res = await sendPushToTeam(team.id, {
+      title: "התראת בדיקה",
+      body: `שלום ${team.name}, ההתראות פועלות 🎉`,
+      url: "/shop/orders",
+    });
+    return res;
   });
