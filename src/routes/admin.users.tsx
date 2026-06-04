@@ -26,13 +26,15 @@ function Admins() {
   const deleteFn = useServerFn(deleteAdminUser);
   const { data: admins } = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn() });
   const [creating, setCreating] = useState(false);
-  const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   async function create() {
     try {
-      await createFn({ data: { email, password } });
+      await createFn({ data: { email, username, password } });
       toast.success("נוסף מנהל");
-      setEmail(""); setPassword(""); setCreating(false);
+      setEmail(""); setUsername(""); setPassword(""); setCreating(false);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     } catch (e: any) { toast.error(e.message); }
   }
