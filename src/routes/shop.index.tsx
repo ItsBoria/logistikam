@@ -26,8 +26,9 @@ export const Route = createFileRoute("/shop/")({
 type CartMap = Record<string, number>;
 
 function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const clean = (base64String || "").trim().replace(/\s+/g, "").replace(/[^A-Za-z0-9_\-=+/]/g, "");
+  const padding = "=".repeat((4 - (clean.length % 4)) % 4);
+  const base64 = (clean + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64);
   const arr = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; ++i) arr[i] = raw.charCodeAt(i);
