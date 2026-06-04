@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { setTeamSession } from "@/lib/team-session";
-import { LogOut, Package, Users, ShoppingBag, UserCog, Loader2, LayoutDashboard } from "lucide-react";
+import { LogOut, Package, Users, ShoppingBag, UserCog, Loader2, LayoutDashboard, Replace, Boxes } from "lucide-react";
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -43,6 +43,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: "/admin", label: "סקירה", icon: LayoutDashboard, exact: true },
     { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
     { to: "/admin/products", label: "מוצרים", icon: Package },
+    { to: "/admin/replacements", label: "החלפות", icon: Replace },
+    { to: "/admin/replacement-inventory", label: "מלאי החלפות", icon: Boxes },
     { to: "/admin/teams", label: "צוותים", icon: Users },
     { to: "/admin/users", label: "מנהלים", icon: UserCog },
   ];
