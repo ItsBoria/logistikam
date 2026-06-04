@@ -86,7 +86,7 @@ function ReplacementsPage() {
       const items = Object.entries(cart).map(([replacement_product_id, quantity]) => ({ replacement_product_id, quantity }));
       await submitFn({ data: { pin: session!.pin, items, contact_phone: phone, ordered_by_name: name, notes } });
       try { localStorage.setItem(`team-contact:${session!.pin}`, JSON.stringify({ name, phone })); } catch {}
-      toast.success("בקשת ההחלפה נשלחה לאישור מנהל");
+      toast.success("בקשת ההחלפה נשלחה. תקבלו הודעה כשתהיה מוכנה לאיסוף");
       setCart({}); setCheckout(false); setNotes("");
       refetch(); refetchHistory();
     } catch (e: any) {
