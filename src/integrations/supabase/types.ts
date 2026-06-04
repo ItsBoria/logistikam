@@ -171,6 +171,30 @@ export type Database = {
           },
         ]
       }
+      team_budget_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          team_id: string
+          threshold: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          team_id: string
+          threshold: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          team_id?: string
+          threshold?: number
+        }
+        Relationships: []
+      }
       teams: {
         Row: {
           active: boolean
