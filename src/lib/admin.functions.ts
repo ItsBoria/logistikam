@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { addVat } from "@/lib/pricing";
 
 const BOOTSTRAP_EMAIL = "davidpanasik@hotmail.com";
 const BUCKET = "product-images";
@@ -268,7 +269,7 @@ export const bulkImportProducts = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const payload = data.rows.map(r => ({
       name: r.name, description: r.description ?? null,
-      price: r.price, stock: r.stock,
+      price: addVat(r.price), stock: r.stock,
       category: r.category ?? null,
       image_url: r.image_url || null,
       active: true,
