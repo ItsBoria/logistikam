@@ -194,10 +194,14 @@ function Shop() {
             <Button asChild variant="outline" size="sm">
               <Link to="/shop/orders"><ClipboardList className="w-4 h-4 ml-2" /> ההזמנות שלי</Link>
             </Button>
-            {pushSupported && (
+            {pushSupported ? (
               pushOn
                 ? <Button variant="outline" size="sm" onClick={disablePush} disabled={pushBusy}><BellOff className="w-4 h-4 ml-2" /> כבה התראות</Button>
                 : <Button variant="outline" size="sm" onClick={enablePush} disabled={pushBusy}><Bell className="w-4 h-4 ml-2" /> הפעל התראות</Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => toast.info(iosNeedsInstall ? "ב‑iPhone יש להוסיף את האתר למסך הבית (שתף → הוסף למסך הבית) ולפתוח משם, ואז להפעיל התראות" : "הדפדפן שלך לא תומך בהתראות Push")}>
+                <Bell className="w-4 h-4 ml-2" /> הפעל התראות
+              </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
               <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
