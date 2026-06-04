@@ -139,7 +139,7 @@ export const bulkImportReplacementProducts = createServerFn({ method: "POST" })
 export const listReplacementRequests = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ status: z.enum(["awaiting_approval","approved","rejected"]).nullable().optional() }).parse(input)
+    z.object({ status: z.enum(["preparing","ready","done","cancelled"]).nullable().optional() }).parse(input)
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
@@ -154,13 +154,13 @@ export const listReplacementRequests = createServerFn({ method: "POST" })
     return rows ?? [];
   });
 
-export const decideReplacementRequest = createServerFn({ method: "POST" })
+export const updateReplacementStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z.object({
       id: z.string().uuid(),
-      decision: z.enum(["approved","rejected"]),
-      // Per-item flag: did the team return the broken unit? (only applies on approve)
+      action: z.enum(["ready","done","cancel"]),
+      // Only used when action === "done": per-item flag whether team returned broken unit (→ balai)
       return_balai: z.record(z.string().uuid(), z.boolean()).optional(),
     }).parse(input)
   )
@@ -169,38 +169,69 @@ export const decideReplacementRequest = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: req } = await supabaseAdmin
       .from("replacement_requests")
-      .select("*, replacement_request_items(*)")
+      .select("*, teams(id, name), replacement_request_items(*)")
       .eq("id", data.id)
       .single();
     if (!req) throw new Error("בקשה לא נמצאה");
-    if (req.status !== "awaiting_approval") throw new Error("הבקשה כבר טופלה");
 
-    if (data.decision === "approved") {
-      for (const it of req.replacement_request_items as any[]) {
-        if (!it.replacement_product_id) continue;
-        const { data: p } = await supabaseAdmin
-          .from("replacement_products")
-          .select("takin_stock, balai_stock")
-          .eq("id", it.replacement_product_id)
-          .maybeSingle();
-        if (!p) continue;
-        const returnBalai = data.return_balai?.[it.id] ?? true;
-        const newTakin = Math.max(0, p.takin_stock - it.quantity);
-        const newBalai = returnBalai ? p.balai_stock + it.quantity : p.balai_stock;
-        await supabaseAdmin
-          .from("replacement_products")
-          .update({ takin_stock: newTakin, balai_stock: newBalai })
-          .eq("id", it.replacement_product_id);
-      }
+    if (data.action === "ready") {
+      if (req.status !== "preparing") throw new Error("ניתן לסמן 'מוכן לאיסוף' רק לבקשות בהכנה");
+      const { error } = await supabaseAdmin
+        .from("replacement_requests")
+        .update({ status: "ready" })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+      // Notify the team
+      try {
+        const { sendPushToTeam } = await import("@/lib/push.server");
+        const teamId = (req as any).team_id;
+        await sendPushToTeam(teamId, {
+          title: "בקשת ההחלפה מוכנה לאיסוף",
+          body: "בקשת ההחלפה שלכם מוכנה לאיסוף ממחסן הציוד",
+          url: "/shop/replacements",
+        });
+      } catch (e) { console.warn("[replacements] push failed", e); }
+      return { ok: true };
     }
 
+    if (data.action === "done") {
+      if (req.status !== "ready" && req.status !== "preparing") throw new Error("הבקשה כבר נסגרה");
+      // Move broken units returned by team into balai bucket
+      for (const it of req.replacement_request_items as any[]) {
+        if (!it.replacement_product_id) continue;
+        const returned = data.return_balai?.[it.id] ?? true;
+        if (!returned) continue;
+        const { data: p } = await supabaseAdmin
+          .from("replacement_products").select("balai_stock").eq("id", it.replacement_product_id).maybeSingle();
+        if (!p) continue;
+        await supabaseAdmin
+          .from("replacement_products")
+          .update({ balai_stock: p.balai_stock + it.quantity })
+          .eq("id", it.replacement_product_id);
+      }
+      const { error } = await supabaseAdmin
+        .from("replacement_requests")
+        .update({ status: "done", decided_at: new Date().toISOString(), decided_by: context.userId })
+        .eq("id", data.id);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+
+    // action === "cancel": restore takin_stock that was deducted on submit
+    if (req.status === "done" || req.status === "cancelled") throw new Error("הבקשה כבר נסגרה");
+    for (const it of req.replacement_request_items as any[]) {
+      if (!it.replacement_product_id) continue;
+      const { data: p } = await supabaseAdmin
+        .from("replacement_products").select("takin_stock").eq("id", it.replacement_product_id).maybeSingle();
+      if (!p) continue;
+      await supabaseAdmin
+        .from("replacement_products")
+        .update({ takin_stock: p.takin_stock + it.quantity })
+        .eq("id", it.replacement_product_id);
+    }
     const { error } = await supabaseAdmin
       .from("replacement_requests")
-      .update({
-        status: data.decision,
-        decided_at: new Date().toISOString(),
-        decided_by: context.userId,
-      })
+      .update({ status: "cancelled", decided_at: new Date().toISOString(), decided_by: context.userId })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };

@@ -36,7 +36,7 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     ] = await Promise.all([
       supabaseAdmin.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
       supabaseAdmin.from("orders").select("*", { count: "exact", head: true }).eq("status", "awaiting_approval"),
-      supabaseAdmin.from("replacement_requests").select("*", { count: "exact", head: true }).eq("status", "awaiting_approval"),
+      supabaseAdmin.from("replacement_requests").select("*", { count: "exact", head: true }).in("status", ["preparing","ready"]),
       supabaseAdmin.from("orders").select("id, total, team_id, status, created_at").gte("created_at", monthIso),
       supabaseAdmin.from("teams").select("id, name, monthly_limit, active").eq("active", true).order("name"),
       supabaseAdmin.from("orders").select("id, status, total, created_at, ordered_by_name, teams(name)").order("created_at", { ascending: false }).limit(5),

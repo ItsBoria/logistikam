@@ -20,14 +20,16 @@ export const Route = createFileRoute("/shop/replacements")({
 });
 
 const STATUS_LABEL: Record<string, string> = {
-  awaiting_approval: "ממתינה לאישור",
-  approved: "אושרה",
-  rejected: "נדחתה",
+  preparing: "בהכנה",
+  ready: "מוכן לאיסוף",
+  done: "נאסף",
+  cancelled: "בוטל",
 };
 const STATUS_COLOR: Record<string, string> = {
-  awaiting_approval: "bg-warning text-warning-foreground",
-  approved: "bg-success text-success-foreground",
-  rejected: "bg-destructive/15 text-destructive",
+  preparing: "bg-warning text-warning-foreground",
+  ready: "bg-primary text-primary-foreground",
+  done: "bg-success text-success-foreground",
+  cancelled: "bg-destructive/15 text-destructive",
 };
 
 function ReplacementsPage() {
@@ -84,7 +86,7 @@ function ReplacementsPage() {
       const items = Object.entries(cart).map(([replacement_product_id, quantity]) => ({ replacement_product_id, quantity }));
       await submitFn({ data: { pin: session!.pin, items, contact_phone: phone, ordered_by_name: name, notes } });
       try { localStorage.setItem(`team-contact:${session!.pin}`, JSON.stringify({ name, phone })); } catch {}
-      toast.success("בקשת ההחלפה נשלחה לאישור מנהל");
+      toast.success("בקשת ההחלפה נשלחה. תקבלו הודעה כשתהיה מוכנה לאיסוף");
       setCart({}); setCheckout(false); setNotes("");
       refetch(); refetchHistory();
     } catch (e: any) {
@@ -210,7 +212,7 @@ function ReplacementsPage() {
             <Input placeholder="שם המבקש" value={name} onChange={(e) => setName(e.target.value)} />
             <Input placeholder="טלפון" value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" />
             <Textarea placeholder="סיבת ההחלפה / הערות" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <p className="text-xs text-muted-foreground">הבקשה תועבר לאישור מנהל. אין חיוב מתקציב.</p>
+            <p className="text-xs text-muted-foreground">הבקשה תיכנס מיד להכנה. אין חיוב מתקציב. תקבלו הודעה כשהיא תהיה מוכנה לאיסוף.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCheckout(false)}>ביטול</Button>

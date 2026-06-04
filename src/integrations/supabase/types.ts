@@ -409,7 +409,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "awaiting_approval"
-      replacement_status: "awaiting_approval" | "approved" | "rejected"
+      replacement_status: "preparing" | "ready" | "done" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -547,7 +547,7 @@ export const Constants = {
         "cancelled",
         "awaiting_approval",
       ],
-      replacement_status: ["awaiting_approval", "approved", "rejected"],
+      replacement_status: ["preparing", "ready", "done", "cancelled"],
     },
   },
 } as const
