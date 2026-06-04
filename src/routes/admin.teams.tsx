@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Bell } from "lucide-react";
 import { toast } from "sonner";
+import { sendTestPush } from "@/lib/push.functions";
 
 export const Route = createFileRoute("/admin/teams")({
   ssr: false,
@@ -24,6 +25,7 @@ function Teams() {
   const listFn = useServerFn(listTeams);
   const upsertFn = useServerFn(upsertTeam);
   const deleteFn = useServerFn(deleteTeam);
+  const testPushFn = useServerFn(sendTestPush);
   const { data: teams } = useQuery({ queryKey: ["admin-teams"], queryFn: () => listFn() });
   const [editing, setEditing] = useState<any>(null);
 
@@ -72,6 +74,10 @@ function Teams() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" title="שלח התראת בדיקה" onClick={async () => {
+                      try { const r = await testPushFn({ data: { pin: t.pin } }); toast.success(`נשלחו ${r.sent} התראות${r.removed ? ` (הוסרו ${r.removed} ישנות)` : ""}`); }
+                      catch (e: any) { toast.error(e.message || "שגיאה"); }
+                    }}><Bell className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => setEditing(t)}><Pencil className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" onClick={() => remove(t.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                   </div>
