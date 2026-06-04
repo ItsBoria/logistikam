@@ -1,5 +1,7 @@
-import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, ClipboardList, Loader2, Phone, User } from "lucide-react";
 import { getTeamOrders } from "@/lib/team.functions";
 import { getTeamSession } from "@/lib/team-session";
@@ -28,34 +30,8 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: "bg-destructive/15 text-destructive",
 };
 
-const teamOrdersQueryOptions = (pin: string) => queryOptions({
-  queryKey: ["team-orders", pin],
-  queryFn: () => getTeamOrders({ data: { pin } }),
-  staleTime: 30_000,
-});
-
 export const Route = createFileRoute("/shop/orders")({
   ssr: false,
-  beforeLoad: () => {
-    const session = getTeamSession();
-    if (!session?.pin) {
-      throw redirect({ to: "/", replace: true });
-    }
-    return { session };
-  },
-  loader: async ({ context }) => {
-    const session = getTeamSession();
-    if (!session?.pin) {
-      throw redirect({ to: "/", replace: true });
-    }
-    await context.queryClient.ensureQueryData(teamOrdersQueryOptions(session.pin));
-    return { pin: session.pin };
-  },
-  pendingComponent: () => (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  ),
   head: () => ({ meta: [{ title: "ההזמנות שלי" }] }),
   notFoundComponent: OrdersNotFound,
   errorComponent: OrdersError,
@@ -93,11 +69,30 @@ function OrdersError({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 function OrdersPage() {
-  const { pin } = Route.useLoaderData();
-  const { data } = useSuspenseQuery({
-    ...teamOrdersQueryOptions(pin),
-    queryFn: () => getTeamOrders({ data: { pin } }),
+  const navigate = useNavigate();
+  const session = typeof window !== "undefined" ? getTeamSession() : null;
+  const fetchOrders = useServerFn(getTeamOrders);
+
+  useEffect(() => {
+    if (!session?.pin) {
+      navigate({ to: "/", replace: true });
+    }
+  }, [navigate, session?.pin]);
+
+  const { data, isLoading } = useQuery({
+    enabled: !!session?.pin,
+    queryKey: ["team-orders", session?.pin],
+    queryFn: () => fetchOrders({ data: { pin: session!.pin } }),
+    staleTime: 30_000,
   });
+
+  if (!session?.pin || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const orders = data.orders ?? [];
 
