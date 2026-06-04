@@ -52,10 +52,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <header className="bg-card border-b sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
-            <Link to="/admin/orders" className="font-bold text-lg">פאנל ניהול</Link>
+            <Link to="/admin" className="font-bold text-lg">פאנל ניהול</Link>
             <nav className="hidden md:flex items-center gap-1">
               {nav.map(n => {
-                const active = path.startsWith(n.to);
+                const active = (n as any).exact ? path === n.to : path.startsWith(n.to) && n.to !== "/admin";
                 return (
                   <Link key={n.to} to={n.to}
                     className={`px-3 py-2 rounded-md text-sm flex items-center gap-2 ${active ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
