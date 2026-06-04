@@ -1,59 +1,48 @@
-# תוכנית פיתוח
 
-## 1. היסטוריית הזמנות לצוות (לקוח)
-- דף חדש `/shop/orders` שמציג את כל ההזמנות של הצוות המחובר (לפי PIN שב‑localStorage).
-- כל הזמנה מציגה: תאריך, סטטוס (ממתינה / מאושרת / מוכנה / נמסרה / מבוטלת / ממתינה לאישור חריגה), סכום, רשימת פריטים, הערות.
-- כפתור "ההזמנות שלי" בכותרת של `/shop`.
-- Server function חדש: `getTeamOrders({ pin })` שמחזיר הזמנות + פריטים, ללא חשיפת צוותים אחרים.
+# Push notifications — full reset
 
-## 2. סינון וחיפוש בקטלוג
-- בעמוד `/shop`: שדה חיפוש (שם/תיאור), בורר קטגוריה, מתג "במלאי בלבד".
-- סינון בצד הלקוח על המוצרים שכבר נטענו.
+## What's broken now
+- "String contains invalid characters" happens in the browser at `pushManager.subscribe(...)` — almost always means the VAPID public key isn't a valid base64url 65‑byte P‑256 key. Sanitizing characters can't fix a wrong key; we need a real, matching key pair.
+- iPhone needs the site installed to the home screen ("Add to Home Screen") before web push works at all — today there's no manifest, so iOS install is unreliable.
 
-## 3. Web Push notifications
-- שימוש ב‑Web Push API מובנה של הדפדפן (חינמי, ללא ספק חיצוני).
-- טבלה חדשה `push_subscriptions` (team_id, endpoint, p256dh, auth).
-- Service Worker חדש `public/sw.js` לקבלת push.
-- בעמוד החנות: כפתור "הפעל התראות" שמבקש הרשאה ורושם subscription לצוות.
-- Server function `sendTeamPush(teamId, title, body)` שמשתמש בספריית `web-push` עם VAPID keys.
-- Secrets חדשים: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (אני אבקש מהמשתמש להפיק עם פקודה פשוטה, או אייצר אוטומטית).
-- שליחה אוטומטית כשסטטוס משתנה ל"מוכנה לאיסוף".
-- SMS דרך Twilio נשאר כאופציה משנית אם מוגדר.
+## The plan
 
-## 4. ניהול הזמנות מתקדם (אדמין)
-- בעמוד `/admin/orders`: כל שורה ניתנת להרחבה ומציגה את הפריטים, כמויות ומחירים.
-- אפשרות לערוך הזמנה קיימת: שינוי כמות פריט, הסרת פריט, חישוב מחדש של הסכום.
-- שינוי סטטוס נשאר כפי שהוא, אבל מעבר ל"מוכנה" מפעיל Push (+SMS אם זמין).
-- Server functions: `getOrderDetails(orderId)`, `updateOrderItems(orderId, items[])`.
+### 1. Generate a real VAPID key pair
+- Generate a fresh P‑256 VAPID public/private pair (using `web-push`).
+- You update three project secrets with the new values:
+  - `VAPID_PUBLIC_KEY` (base64url, ~87 chars, starts with `B`)
+  - `VAPID_PRIVATE_KEY`
+  - `VAPID_SUBJECT` (e.g. `mailto:davidpanasik@hotmail.com`)
+- Old subscriptions become invalid → wipe the `push_subscriptions` table once so every device re‑subscribes against the new key.
 
-## 5. העלאת תמונות למוצרים
-- Supabase Storage bucket ציבורי בשם `product-images`.
-- בטופס המוצר (`/admin/products`): שדה העלאת קובץ (drag&drop + בחירה), תצוגה מקדימה, מחיקה.
-- נשאר גם שדה URL ידני כגיבוי.
-- ייבוא מ‑Excel נשאר תומך ב‑URL בעמודת "תמונה".
+### 2. Rebuild the push code from scratch
+- New `public/sw.js` (clean push + notificationclick handler, RTL, opens `/shop/orders`).
+- New `src/lib/push-client.ts` with one function per action: `enablePush(pin)`, `disablePush()`, `getPushState()`. No string sanitization hacks — proper base64url → Uint8Array conversion only.
+- New `src/lib/push.functions.ts`:
+  - `getVapidPublicKey` returns the raw key (no character stripping).
+  - `subscribePush` / `unsubscribePush` write to `push_subscriptions` keyed by endpoint.
+- New `src/lib/push.server.ts` `sendPushToTeam` (kept, cleaned up; drops 404/410 subs automatically).
+- Replace the push UI block in `src/routes/shop.index.tsx` with a single `<PushToggle />` component that shows the right state: not‑supported / needs‑install (iOS) / off / on / busy, with clear Hebrew messages.
 
-## פרטים טכניים
+### 3. Make iPhone push actually possible
+- Add `public/manifest.webmanifest` (name, short_name, theme/background color, `display: "standalone"`, `start_url: "/shop"`, icons 192/512).
+- Add manifest + apple-touch-icon + theme-color tags in `__root.tsx` head.
+- Reuse existing favicon as the icon (no new art) unless you want a custom one later.
+- On iOS Safari (not installed): show a clear instruction card ("שתף → הוסף למסך הבית, ואז פתחו את האפליקציה והפעילו התראות").
+- After install on iPhone (iOS 16.4+), the same `enablePush` flow works.
 
-### סכמת DB (מיגרציה אחת)
-- `push_subscriptions(id, team_id FK, endpoint UNIQUE, p256dh, auth, created_at)` + RLS (admin only; כתיבה דרך server function עם service role).
-- Storage bucket `product-images` ציבורי + policy לאדמינים בלבד להעלאה/מחיקה, קריאה ציבורית.
+### 4. Verify
+- Android Chrome: enable → permission prompt → success toast → test push from admin.
+- iPhone: install to home screen → open app → enable → test push.
+- Send a test push from the admin orders page (already wired via `sendPushToTeam` on new orders); add a small "שלח התראת בדיקה" button per team in admin to make verification easy.
 
-### חבילות חדשות
-- `web-push` להפקת התראות.
+## What you need to do
+1. Approve this plan.
+2. After I generate the new keys, I'll ask you to paste the three values into the secret prompts (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
+3. On every device that previously tried to enable push, toggle it off and on once after the update.
 
-### Secrets
-- `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (mailto:davidpanasik@hotmail.com). אני אייצר את הזוג בעצמי בהרצת סקריפט ואבקש מהמשתמש לשמור אותם.
-
-### קבצים עיקריים שייווצרו/יתעדכנו
-- `supabase/migrations/...` — טבלת push_subscriptions
-- `public/sw.js` — service worker ל‑push
-- `src/lib/push.functions.ts` + `src/lib/push.server.ts`
-- `src/lib/team.functions.ts` — `getTeamOrders`
-- `src/lib/admin.functions.ts` — `getOrderDetails`, `updateOrderItems`
-- `src/routes/shop.tsx` — חיפוש/סינון + כפתורי "ההזמנות שלי" ו"הפעל התראות"
-- `src/routes/shop.orders.tsx` — דף חדש
-- `src/routes/admin.orders.tsx` — הרחבה של שורות + עריכת פריטים
-- `src/routes/admin.products.tsx` — העלאת תמונה
-
-## שאלה אחת לפני שמתחילים
-האם להמשיך עם **Web Push בלבד** (חינמי לגמרי, עובד דרך הדפדפן/PWA), או להוסיף גם **Telegram bot** כגיבוי במקביל? Web Push דורש שהמשתמש יאשר הרשאה פעם אחת והמכשיר יהיה מחובר לאינטרנט.
+## Technical notes
+- `urlBase64ToUint8Array` will only pad and translate `-_` → `+/`; no character stripping. If the key is bad we'll throw a clear error instead of silently corrupting it.
+- VAPID key length check on the server (`getVapidPublicKey` throws if not ~87 chars / decodes to 65 bytes) so misconfiguration surfaces immediately.
+- Migration: `delete from public.push_subscriptions;` so stale endpoints tied to the old key don't 403 on send.
+- No changes to orders, VAT, or admin cleanup features.
