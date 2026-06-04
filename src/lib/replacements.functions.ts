@@ -70,14 +70,14 @@ export const submitReplacementRequest = createServerFn({ method: "POST" })
       const p = products.find((x: any) => x.id === i.replacement_product_id)!;
       if (!p.active) throw new Error(`הפריט ${p.name} אינו זמין`);
       if (p.takin_stock < i.quantity) throw new Error(`אין מספיק מלאי תקין עבור ${p.name}`);
-      return { replacement_product_id: p.id, name: p.name, quantity: i.quantity };
+      return { replacement_product_id: p.id, name: p.name, quantity: i.quantity, takin_stock: p.takin_stock };
     });
 
     const { data: req, error: reqErr } = await supabaseAdmin
       .from("replacement_requests")
       .insert({
         team_id: team.id,
-        status: "awaiting_approval",
+        status: "preparing",
         notes: data.notes,
         contact_phone: data.contact_phone,
         ordered_by_name: data.ordered_by_name,
@@ -88,10 +88,23 @@ export const submitReplacementRequest = createServerFn({ method: "POST" })
 
     const { error: itemsErr } = await supabaseAdmin
       .from("replacement_request_items")
-      .insert(lines.map((l) => ({ ...l, request_id: req.id })));
+      .insert(lines.map((l) => ({
+        replacement_product_id: l.replacement_product_id,
+        name: l.name,
+        quantity: l.quantity,
+        request_id: req.id,
+      })));
     if (itemsErr) throw new Error(itemsErr.message);
 
-    return { request_id: req.id, status: "awaiting_approval" as const };
+    // Deduct takin_stock immediately (request is now in fulfillment).
+    for (const l of lines) {
+      await supabaseAdmin
+        .from("replacement_products")
+        .update({ takin_stock: Math.max(0, l.takin_stock - l.quantity) })
+        .eq("id", l.replacement_product_id);
+    }
+
+    return { request_id: req.id, status: "preparing" as const };
   });
 
 export const getTeamReplacementRequests = createServerFn({ method: "POST" })
