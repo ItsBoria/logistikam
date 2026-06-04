@@ -48,10 +48,34 @@ function Shop() {
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
 
+  // Prefill contact info from previous orders (per-team) and any reorder cart
+  useEffect(() => {
+    if (!session) return;
+    try {
+      const k = `team-contact:${session.pin}`;
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v.name) setName(v.name);
+        if (v.phone) setPhone(v.phone);
+      }
+      const prefillKey = `prefill-cart:${session.pin}`;
+      const prefill = sessionStorage.getItem(prefillKey);
+      if (prefill) {
+        sessionStorage.removeItem(prefillKey);
+        const items: Array<{ product_id: string; quantity: number }> = JSON.parse(prefill);
+        const next: CartMap = {};
+        for (const it of items) next[it.product_id] = it.quantity;
+        setCart(next);
+      }
+    } catch {}
+  }, [session?.pin]);
+
   // search/filter
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [inStockOnly, setInStockOnly] = useState(false);
+
 
 
   const products = data?.products ?? [];
