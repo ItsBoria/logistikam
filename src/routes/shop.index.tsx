@@ -115,6 +115,9 @@ function Shop() {
     try {
       const items = Object.entries(cart).map(([product_id, quantity]) => ({ product_id, quantity }));
       const res = await orderFn({ data: { pin: session!.pin, items, notes, contact_phone: phone, ordered_by_name: name } });
+      try {
+        localStorage.setItem(`team-contact:${session!.pin}`, JSON.stringify({ name, phone }));
+      } catch {}
       toast.success(res.requires_approval
         ? "ההזמנה נשלחה ומחכה לאישור מנהל (חריגה ממסגרת)"
         : "ההזמנה נשלחה בהצלחה!");
@@ -124,6 +127,7 @@ function Shop() {
       toast.error(e.message || "שגיאה בשליחת הזמנה");
     } finally { setPlacing(false); }
   }
+
 
 
   function logout() { setTeamSession(null); navigate({ to: "/" }); }
