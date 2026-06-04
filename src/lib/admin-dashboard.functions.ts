@@ -20,20 +20,27 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     monthStart.setUTCHours(0, 0, 0, 0);
     const monthIso = monthStart.toISOString();
 
+    // Default low-stock threshold from settings
+    const { data: settingRow } = await supabaseAdmin
+      .from("app_settings").select("value").eq("key", "default_low_stock_threshold").maybeSingle();
+    const defaultThreshold = Number((settingRow?.value as any) ?? 5);
+
     const [
       { count: pendingCount },
       { count: awaitingCount },
+      { count: pendingReplacementsCount },
       monthOrdersRes,
       teamsRes,
       recentOrdersRes,
-      lowStockRes,
+      activeProductsRes,
     ] = await Promise.all([
       supabaseAdmin.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
       supabaseAdmin.from("orders").select("*", { count: "exact", head: true }).eq("status", "awaiting_approval"),
+      supabaseAdmin.from("replacement_requests").select("*", { count: "exact", head: true }).eq("status", "awaiting_approval"),
       supabaseAdmin.from("orders").select("id, total, team_id, status, created_at").gte("created_at", monthIso),
       supabaseAdmin.from("teams").select("id, name, monthly_limit, active").eq("active", true).order("name"),
       supabaseAdmin.from("orders").select("id, status, total, created_at, ordered_by_name, teams(name)").order("created_at", { ascending: false }).limit(5),
-      supabaseAdmin.from("products").select("id, name, stock").eq("active", true).lte("stock", 3).order("stock").limit(10),
+      supabaseAdmin.from("products").select("id, name, stock, low_stock_threshold").eq("active", true),
     ]);
 
     const monthOrders = monthOrdersRes.data ?? [];
@@ -43,6 +50,15 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
     const monthRevenue = monthOrders
       .filter((o: any) => o.status !== "cancelled" && o.status !== "awaiting_approval")
       .reduce((s: number, o: any) => s + Number(o.total), 0);
+
+    // Low-stock list using per-product or default threshold
+    const lowStock = (activeProductsRes.data ?? [])
+      .map((p: any) => ({ ...p, effective_threshold: p.low_stock_threshold ?? defaultThreshold }))
+      .filter((p: any) => p.stock <= p.effective_threshold)
+      .sort((a: any, b: any) => a.stock - b.stock)
+      .slice(0, 10);
+    const lowStockCount = (activeProductsRes.data ?? [])
+      .filter((p: any) => p.stock <= (p.low_stock_threshold ?? defaultThreshold)).length;
 
     // Per-team spend
     const spendByTeam = new Map<string, number>();
@@ -61,14 +77,17 @@ export const getAdminDashboard = createServerFn({ method: "GET" })
       kpis: {
         pending: pendingCount ?? 0,
         awaiting: awaitingCount ?? 0,
+        pendingReplacements: pendingReplacementsCount ?? 0,
         monthOrders: monthOrdersCount,
         monthRevenue,
         activeTeams: teams.length,
+        lowStock: lowStockCount,
       },
+      defaultLowStockThreshold: defaultThreshold,
       topTeams: teamStats.slice(0, 5),
       teamStats,
       recentOrders: recentOrdersRes.data ?? [],
-      lowStock: lowStockRes.data ?? [],
+      lowStock,
     };
   });
 
