@@ -56,5 +56,8 @@ export const sendTestPush = createServerFn({ method: "POST" })
       body: `שלום ${team.name}, ההתראות פועלות 🎉`,
       url: "/shop/orders",
     });
+    if (res.sent === 0 && res.error) {
+      throw new Error(res.error);
+    }
     return res;
   });
