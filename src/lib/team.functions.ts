@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { addVat } from "@/lib/pricing";
 
 const BUCKET = "product-images";
 const SIGN_TTL = 60 * 60 * 24 * 7; // 7 days
@@ -49,7 +50,10 @@ export const getShopData = createServerFn({ method: "POST" })
     const resolved = await resolveProductImages(supabaseAdmin, products ?? []);
     return {
       team,
-      products: resolved,
+      products: resolved.map((product) => ({
+        ...product,
+        price: addVat(Number(product.price)),
+      })),
       spent: Number(spent ?? 0),
     };
   });
@@ -86,8 +90,9 @@ export const placeOrder = createServerFn({ method: "POST" })
       const p = products.find(x => x.id === i.product_id)!;
       if (!p.active) throw new Error(`המוצר ${p.name} אינו זמין`);
       if (p.stock < i.quantity) throw new Error(`אין מספיק מלאי עבור ${p.name}`);
-      total += Number(p.price) * i.quantity;
-      return { product_id: p.id, name: p.name, price: p.price, quantity: i.quantity };
+      const priceWithVat = addVat(Number(p.price));
+      total += priceWithVat * i.quantity;
+      return { product_id: p.id, name: p.name, price: priceWithVat, quantity: i.quantity };
     });
 
     const { data: spentResp } = await supabaseAdmin.rpc("team_month_spent", { _team_id: team.id });
@@ -141,5 +146,15 @@ export const getTeamOrders = createServerFn({ method: "POST" })
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
-    return { team, orders: orders ?? [] };
+    return {
+      team,
+      orders: (orders ?? []).map((order) => ({
+        ...order,
+        total: Number(order.total),
+        order_items: (order.order_items ?? []).map((item) => ({
+          ...item,
+          price: Number(item.price),
+        })),
+      })),
+    };
   });

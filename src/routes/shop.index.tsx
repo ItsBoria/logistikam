@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getShopData, placeOrder } from "@/lib/team.functions";
 import { getVapidPublicKey, subscribePush, unsubscribePush } from "@/lib/push.functions";
 import { getTeamSession, setTeamSession } from "@/lib/team-session";
+import { VAT_LABEL, formatCurrency } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -187,7 +188,7 @@ function Shop() {
           <div>
             <h1 className="font-bold text-lg">{data?.team.name}</h1>
             <p className="text-xs text-muted-foreground">
-              {limit > 0 ? <>נוצל: ₪{spent.toFixed(0)} / ₪{limit.toFixed(0)} · נותר ₪{Math.max(0, remaining).toFixed(0)}</> : "ללא מגבלת חודש"}
+              {limit > 0 ? <>נוצל: {formatCurrency(spent)} / {formatCurrency(limit)} · נותר {formatCurrency(Math.max(0, remaining))}</> : "ללא מגבלת חודש"}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -254,8 +255,11 @@ function Shop() {
                   <div className="p-3 flex-1 flex flex-col">
                     <h3 className="font-semibold leading-tight">{p.name}</h3>
                     {p.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>}
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="font-bold text-lg">₪{Number(p.price).toFixed(0)}</span>
+                    <div className="mt-2 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-lg">{formatCurrency(Number(p.price))}</div>
+                        <div className="text-[11px] text-muted-foreground">{VAT_LABEL}</div>
+                      </div>
                       <span className="text-xs text-muted-foreground">מלאי: {p.stock}</span>
                     </div>
                     <div className="mt-3">
@@ -290,16 +294,17 @@ function Shop() {
                 <div key={id} className="flex items-center justify-between gap-2 border-b pb-2">
                   <div className="flex-1">
                     <div className="font-medium text-sm">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">₪{Number(p.price).toFixed(0)} × {q}</div>
+                    <div className="text-xs text-muted-foreground">{formatCurrency(Number(p.price))} × {q}</div>
                   </div>
-                  <div className="font-semibold">₪{(Number(p.price) * q).toFixed(0)}</div>
+                  <div className="font-semibold">{formatCurrency(Number(p.price) * q)}</div>
                   <Button variant="ghost" size="icon" onClick={() => setQty(id, 0, p.stock)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                 </div>
               );
             })}
           </div>
           <div className="space-y-2 pt-2 border-t">
-            <div className="flex justify-between font-bold text-lg"><span>סה"כ</span><span>₪{total.toFixed(0)}</span></div>
+            <div className="flex justify-between font-bold text-lg"><span>סה"כ</span><span>{formatCurrency(total)}</span></div>
+            <div className="text-xs text-muted-foreground">כל המחירים {VAT_LABEL}</div>
             {willExceed && (
               <div className="text-sm bg-warning/15 text-warning-foreground p-2 rounded flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" /> חורג מהמסגרת - דורש אישור מנהל
