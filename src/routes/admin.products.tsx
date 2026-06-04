@@ -46,16 +46,17 @@ function Products() {
   const imgFileRef = useRef<HTMLInputElement>(null);
 
   function newProduct() {
-    setEditing({ name: "", description: "", price: 0, stock: 0, category: "", image_url: "", image_preview: "", active: true });
+    setEditing({ name: "", description: "", price: 0, stock: 0, category: "", image_url: "", image_preview: "", active: true, low_stock_threshold: "" });
   }
 
   function startEdit(p: any) {
     // Use raw storage ref for save, signed url for preview
-    setEditing({ ...p, image_url: p._raw_image_url || "", image_preview: p.image_url || "" });
+    setEditing({ ...p, image_url: p._raw_image_url || "", image_preview: p.image_url || "", low_stock_threshold: p.low_stock_threshold ?? "" });
   }
 
   async function save() {
     try {
+      const thr = String(editing.low_stock_threshold ?? "").trim();
       await upsertFn({ data: {
         id: editing.id,
         name: editing.name,
@@ -65,6 +66,7 @@ function Products() {
         category: editing.category || null,
         image_url: editing.image_url || "",
         active: !!editing.active,
+        low_stock_threshold: thr === "" ? null : Number(thr),
       } });
       toast.success("נשמר");
       setEditing(null);
