@@ -4,13 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
 import { getAdminDashboard, setTeamMonthlyLimit } from "@/lib/admin-dashboard.functions";
-import { updateOrderStatus } from "@/lib/admin.functions";
+import { updateOrderStatus, getAppSettings, setDefaultLowStockThreshold } from "@/lib/admin.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/pricing";
-import { Loader2, ShoppingBag, Clock, DollarSign, Users, AlertTriangle, Pencil, Check, X, Package } from "lucide-react";
+import { Loader2, ShoppingBag, Clock, DollarSign, Users, AlertTriangle, Pencil, Check, X, Package, Replace, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/")({
@@ -43,15 +43,24 @@ function DashboardPage() {
   const dashFn = useServerFn(getAdminDashboard);
   const limitFn = useServerFn(setTeamMonthlyLimit);
   const statusFn = useServerFn(updateOrderStatus);
+  const settingsFn = useServerFn(getAppSettings);
+  const setThresholdFn = useServerFn(setDefaultLowStockThreshold);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard"],
     queryFn: () => dashFn(),
     staleTime: 30_000,
   });
+  const { data: settings } = useQuery({
+    queryKey: ["app-settings"],
+    queryFn: () => settingsFn(),
+    staleTime: 60_000,
+  });
 
   const [editingTeam, setEditingTeam] = useState<string | null>(null);
   const [limitValue, setLimitValue] = useState<string>("");
+  const [editingThreshold, setEditingThreshold] = useState(false);
+  const [thresholdValue, setThresholdValue] = useState<string>("");
 
   if (isLoading || !data) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -78,15 +87,53 @@ function DashboardPage() {
     } catch (e: any) { toast.error(e.message || "שגיאה"); }
   }
 
+  async function saveThreshold() {
+    const n = Number(thresholdValue);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) { toast.error("ערך לא תקין"); return; }
+    try {
+      await setThresholdFn({ data: { value: n } });
+      toast.success("סף ברירת המחדל עודכן");
+      setEditingThreshold(false);
+      qc.invalidateQueries({ queryKey: ["app-settings"] });
+      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    } catch (e: any) { toast.error(e.message || "שגיאה"); }
+  }
+
   return (
     <div className="space-y-6">
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={<Clock className="w-5 h-5" />} label="ממתינות" value={kpis.pending + kpis.awaiting} tone="warning" />
+        <Kpi icon={<Replace className="w-5 h-5" />} label="בקשות החלפה" value={kpis.pendingReplacements} tone={kpis.pendingReplacements > 0 ? "warning" : undefined} />
+        <Kpi icon={<Package className="w-5 h-5" />} label="מלאי נמוך" value={kpis.lowStock} tone={kpis.lowStock > 0 ? "warning" : undefined} />
         <Kpi icon={<ShoppingBag className="w-5 h-5" />} label="הזמנות החודש" value={kpis.monthOrders} />
         <Kpi icon={<DollarSign className="w-5 h-5" />} label="הכנסות החודש" value={formatCurrency(kpis.monthRevenue)} />
         <Kpi icon={<Users className="w-5 h-5" />} label="צוותים פעילים" value={kpis.activeTeams} />
       </div>
+
+      {/* Global low-stock threshold */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-bold flex items-center gap-2"><Settings className="w-4 h-4" /> סף ברירת מחדל למלאי נמוך</h2>
+            <p className="text-xs text-muted-foreground mt-1">מוצרים בלי סף אישי ייחשבו "מלאי נמוך" כאשר המלאי קטן או שווה לערך הזה.</p>
+          </div>
+          {editingThreshold ? (
+            <div className="flex items-center gap-2">
+              <Input type="number" min={0} value={thresholdValue} onChange={(e) => setThresholdValue(e.target.value)} className="h-9 w-24" dir="ltr" />
+              <Button size="icon" variant="default" className="h-9 w-9" onClick={saveThreshold}><Check className="w-4 h-4" /></Button>
+              <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => setEditingThreshold(false)}><X className="w-4 h-4" /></Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold tabular-nums">{settings?.default_low_stock_threshold ?? data.defaultLowStockThreshold ?? 5}</span>
+              <Button variant="outline" size="sm" onClick={() => { setEditingThreshold(true); setThresholdValue(String(settings?.default_low_stock_threshold ?? data.defaultLowStockThreshold ?? 5)); }}>
+                <Pencil className="w-3 h-3 ml-1" /> שינוי
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top teams */}

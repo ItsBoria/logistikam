@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           id: string
@@ -108,6 +126,7 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          low_stock_threshold: number | null
           name: string
           price: number
           stock: number
@@ -119,6 +138,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          low_stock_threshold?: number | null
           name: string
           price?: number
           stock?: number
@@ -130,6 +150,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          low_stock_threshold?: number | null
           name?: string
           price?: number
           stock?: number
@@ -170,6 +191,116 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      replacement_products: {
+        Row: {
+          active: boolean
+          balai_stock: number
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          takin_stock: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          balai_stock?: number
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          takin_stock?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          balai_stock?: number
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          takin_stock?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      replacement_request_items: {
+        Row: {
+          id: string
+          name: string
+          quantity: number
+          replacement_product_id: string | null
+          request_id: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          quantity: number
+          replacement_product_id?: string | null
+          request_id: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          quantity?: number
+          replacement_product_id?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "replacement_request_items_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "replacement_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      replacement_requests: {
+        Row: {
+          contact_phone: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          notes: string | null
+          ordered_by_name: string | null
+          status: Database["public"]["Enums"]["replacement_status"]
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_phone?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          notes?: string | null
+          ordered_by_name?: string | null
+          status?: Database["public"]["Enums"]["replacement_status"]
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_phone?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          notes?: string | null
+          ordered_by_name?: string | null
+          status?: Database["public"]["Enums"]["replacement_status"]
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       team_budget_alerts: {
         Row: {
@@ -270,6 +401,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "awaiting_approval"
+      replacement_status: "awaiting_approval" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -407,6 +539,7 @@ export const Constants = {
         "cancelled",
         "awaiting_approval",
       ],
+      replacement_status: ["awaiting_approval", "approved", "rejected"],
     },
   },
 } as const

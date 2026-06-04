@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, ClipboardList } from "lucide-react";
+import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, ClipboardList, Replace } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -148,6 +148,9 @@ function Shop() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button asChild variant="outline" size="sm">
               <Link to="/shop/orders"><ClipboardList className="w-4 h-4 ml-2" /> ההזמנות שלי</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/shop/replacements"><Replace className="w-4 h-4 ml-2" /> החלפות</Link>
             </Button>
             <PushToggle pin={session!.pin} />
             <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>

@@ -46,16 +46,17 @@ function Products() {
   const imgFileRef = useRef<HTMLInputElement>(null);
 
   function newProduct() {
-    setEditing({ name: "", description: "", price: 0, stock: 0, category: "", image_url: "", image_preview: "", active: true });
+    setEditing({ name: "", description: "", price: 0, stock: 0, category: "", image_url: "", image_preview: "", active: true, low_stock_threshold: "" });
   }
 
   function startEdit(p: any) {
     // Use raw storage ref for save, signed url for preview
-    setEditing({ ...p, image_url: p._raw_image_url || "", image_preview: p.image_url || "" });
+    setEditing({ ...p, image_url: p._raw_image_url || "", image_preview: p.image_url || "", low_stock_threshold: p.low_stock_threshold ?? "" });
   }
 
   async function save() {
     try {
+      const thr = String(editing.low_stock_threshold ?? "").trim();
       await upsertFn({ data: {
         id: editing.id,
         name: editing.name,
@@ -65,6 +66,7 @@ function Products() {
         category: editing.category || null,
         image_url: editing.image_url || "",
         active: !!editing.active,
+        low_stock_threshold: thr === "" ? null : Number(thr),
       } });
       toast.success("נשמר");
       setEditing(null);
@@ -175,7 +177,13 @@ function Products() {
                 <div><label className="text-sm">מחיר (₪)</label><Input type="number" value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} /></div>
                 <div><label className="text-sm">מלאי</label><Input type="number" value={editing.stock} onChange={(e) => setEditing({ ...editing, stock: e.target.value })} /></div>
               </div>
-              <div><label className="text-sm">קטגוריה</label><Input value={editing.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-sm">קטגוריה</label><Input value={editing.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} /></div>
+                <div>
+                  <label className="text-sm">סף מלאי נמוך</label>
+                  <Input type="number" min={0} placeholder="ברירת מחדל מהמערכת" value={editing.low_stock_threshold ?? ""} onChange={(e) => setEditing({ ...editing, low_stock_threshold: e.target.value })} />
+                </div>
+              </div>
               <div className="space-y-2">
                 <label className="text-sm">תמונה</label>
                 {editing.image_preview && (

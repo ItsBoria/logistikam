@@ -12,9 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShopIndexRouteImport } from './routes/shop.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as ShopReplacementsRouteImport } from './routes/shop.replacements'
 import { Route as ShopOrdersRouteImport } from './routes/shop.orders'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTeamsRouteImport } from './routes/admin.teams'
+import { Route as AdminReplacementsRouteImport } from './routes/admin.replacements'
+import { Route as AdminReplacementInventoryRouteImport } from './routes/admin.replacement-inventory'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
@@ -34,6 +37,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShopReplacementsRoute = ShopReplacementsRouteImport.update({
+  id: '/shop/replacements',
+  path: '/shop/replacements',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopOrdersRoute = ShopOrdersRouteImport.update({
   id: '/shop/orders',
   path: '/shop/orders',
@@ -49,6 +57,17 @@ const AdminTeamsRoute = AdminTeamsRouteImport.update({
   path: '/admin/teams',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminReplacementsRoute = AdminReplacementsRouteImport.update({
+  id: '/admin/replacements',
+  path: '/admin/replacements',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminReplacementInventoryRoute =
+  AdminReplacementInventoryRouteImport.update({
+    id: '/admin/replacement-inventory',
+    path: '/admin/replacement-inventory',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AdminProductsRoute = AdminProductsRouteImport.update({
   id: '/admin/products',
   path: '/admin/products',
@@ -70,9 +89,12 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/replacement-inventory': typeof AdminReplacementInventoryRoute
+  '/admin/replacements': typeof AdminReplacementsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
   '/shop/orders': typeof ShopOrdersRoute
+  '/shop/replacements': typeof ShopReplacementsRoute
   '/admin/': typeof AdminIndexRoute
   '/shop/': typeof ShopIndexRoute
 }
@@ -81,9 +103,12 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/replacement-inventory': typeof AdminReplacementInventoryRoute
+  '/admin/replacements': typeof AdminReplacementsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
   '/shop/orders': typeof ShopOrdersRoute
+  '/shop/replacements': typeof ShopReplacementsRoute
   '/admin': typeof AdminIndexRoute
   '/shop': typeof ShopIndexRoute
 }
@@ -93,9 +118,12 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/orders': typeof AdminOrdersRoute
   '/admin/products': typeof AdminProductsRoute
+  '/admin/replacement-inventory': typeof AdminReplacementInventoryRoute
+  '/admin/replacements': typeof AdminReplacementsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
   '/shop/orders': typeof ShopOrdersRoute
+  '/shop/replacements': typeof ShopReplacementsRoute
   '/admin/': typeof AdminIndexRoute
   '/shop/': typeof ShopIndexRoute
 }
@@ -106,9 +134,12 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/orders'
     | '/admin/products'
+    | '/admin/replacement-inventory'
+    | '/admin/replacements'
     | '/admin/teams'
     | '/admin/users'
     | '/shop/orders'
+    | '/shop/replacements'
     | '/admin/'
     | '/shop/'
   fileRoutesByTo: FileRoutesByTo
@@ -117,9 +148,12 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/orders'
     | '/admin/products'
+    | '/admin/replacement-inventory'
+    | '/admin/replacements'
     | '/admin/teams'
     | '/admin/users'
     | '/shop/orders'
+    | '/shop/replacements'
     | '/admin'
     | '/shop'
   id:
@@ -128,9 +162,12 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/orders'
     | '/admin/products'
+    | '/admin/replacement-inventory'
+    | '/admin/replacements'
     | '/admin/teams'
     | '/admin/users'
     | '/shop/orders'
+    | '/shop/replacements'
     | '/admin/'
     | '/shop/'
   fileRoutesById: FileRoutesById
@@ -140,9 +177,12 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
   AdminProductsRoute: typeof AdminProductsRoute
+  AdminReplacementInventoryRoute: typeof AdminReplacementInventoryRoute
+  AdminReplacementsRoute: typeof AdminReplacementsRoute
   AdminTeamsRoute: typeof AdminTeamsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   ShopOrdersRoute: typeof ShopOrdersRoute
+  ShopReplacementsRoute: typeof ShopReplacementsRoute
   AdminIndexRoute: typeof AdminIndexRoute
   ShopIndexRoute: typeof ShopIndexRoute
 }
@@ -170,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shop/replacements': {
+      id: '/shop/replacements'
+      path: '/shop/replacements'
+      fullPath: '/shop/replacements'
+      preLoaderRoute: typeof ShopReplacementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop/orders': {
       id: '/shop/orders'
       path: '/shop/orders'
@@ -189,6 +236,20 @@ declare module '@tanstack/react-router' {
       path: '/admin/teams'
       fullPath: '/admin/teams'
       preLoaderRoute: typeof AdminTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/replacements': {
+      id: '/admin/replacements'
+      path: '/admin/replacements'
+      fullPath: '/admin/replacements'
+      preLoaderRoute: typeof AdminReplacementsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/replacement-inventory': {
+      id: '/admin/replacement-inventory'
+      path: '/admin/replacement-inventory'
+      fullPath: '/admin/replacement-inventory'
+      preLoaderRoute: typeof AdminReplacementInventoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/products': {
@@ -220,9 +281,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminOrdersRoute: AdminOrdersRoute,
   AdminProductsRoute: AdminProductsRoute,
+  AdminReplacementInventoryRoute: AdminReplacementInventoryRoute,
+  AdminReplacementsRoute: AdminReplacementsRoute,
   AdminTeamsRoute: AdminTeamsRoute,
   AdminUsersRoute: AdminUsersRoute,
   ShopOrdersRoute: ShopOrdersRoute,
+  ShopReplacementsRoute: ShopReplacementsRoute,
   AdminIndexRoute: AdminIndexRoute,
   ShopIndexRoute: ShopIndexRoute,
 }
