@@ -247,6 +247,9 @@ function OrdersPage() {
                     <Button variant="outline" size="sm" onClick={() => startEdit(o)}>
                       <Pencil className="w-4 h-4 ml-1" /> ערוך פריטים
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeOrder(o.id)} className="text-destructive hover:text-destructive">
+                      <Trash2 className="w-4 h-4 ml-1" /> מחק הזמנה
+                    </Button>
                   </div>
                 </div>
               </AccordionContent>
