@@ -304,6 +304,29 @@ function OrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={cleanupOpen} onOpenChange={setCleanupOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>מחיקת הזמנות ישנות</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">פעולה זו תמחק לצמיתות את כל ההזמנות שנוצרו לפני התאריך שתבחר.</p>
+            <div>
+              <label className="text-sm">מחק הזמנות לפני</label>
+              <Input type="date" value={cleanupBefore} onChange={(e) => setCleanupBefore(e.target.value)} />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cleanupOnlyDone} onChange={(e) => setCleanupOnlyDone(e.target.checked)} />
+              מחק רק הזמנות שהושלמו או בוטלו
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCleanupOpen(false)} disabled={cleanupBusy}>ביטול</Button>
+            <Button variant="destructive" onClick={runCleanup} disabled={cleanupBusy}>
+              {cleanupBusy ? "מוחק..." : "מחק"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
