@@ -94,6 +94,19 @@ function OrdersPage() {
     );
   }
 
+  if (!data) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <p className="text-sm text-muted-foreground">לא נמצאו נתוני הזמנות כרגע.</p>
+          <div className="mt-4 flex justify-center">
+            <Button asChild><Link to="/shop">חזרה לחנות</Link></Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   const orders = data.orders ?? [];
 
   return (
