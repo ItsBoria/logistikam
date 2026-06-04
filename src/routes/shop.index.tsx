@@ -156,12 +156,17 @@ function Shop() {
             <Button variant="ghost" size="sm" onClick={logout}><LogOut className="w-4 h-4" /></Button>
           </div>
         </div>
-        {willExceed && (
+        {willExceed ? (
           <div className="bg-warning/15 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
             <AlertTriangle className="w-4 h-4" /> ההזמנה הנוכחית חורגת מהמסגרת החודשית ותדרוש אישור מנהל
           </div>
-        )}
+        ) : limit > 0 && remaining / limit < 0.2 ? (
+          <div className="bg-warning/20 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
+            <AlertTriangle className="w-4 h-4" /> נותרו רק {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
+          </div>
+        ) : null}
       </header>
+
 
       <main className="max-w-6xl mx-auto p-4 space-y-4">
         <Card className="p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
