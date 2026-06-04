@@ -61,7 +61,7 @@ export function PushToggle({ pin }: { pin: string }) {
       }
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appServerKey,
+        applicationServerKey: appServerKey.buffer.slice(appServerKey.byteOffset, appServerKey.byteOffset + appServerKey.byteLength) as ArrayBuffer,
       });
       const json: any = sub.toJSON();
       await subscribeFn({
