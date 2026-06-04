@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, Bell, BellOff, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/shop")({
+export const Route = createFileRoute("/shop/")({
   ssr: false,
   head: () => ({ meta: [{ title: "חנות - מערכת הזמנות צוותים" }] }),
   component: Shop,
