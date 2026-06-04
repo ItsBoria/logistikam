@@ -221,7 +221,35 @@ const productSchema = z.object({
   category: z.string().max(100).optional().nullable(),
   image_url: imageUrlSchema,
   active: z.boolean(),
+  low_stock_threshold: z.number().int().min(0).max(10_000_000).nullable().optional(),
 });
+
+// ---- App settings ----
+export const getAppSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.from("app_settings").select("key, value");
+    const map: Record<string, any> = {};
+    for (const r of data ?? []) map[r.key] = r.value;
+    return {
+      default_low_stock_threshold: Number(map.default_low_stock_threshold ?? 5),
+    };
+  });
+
+export const setDefaultLowStockThreshold = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ value: z.number().int().min(0).max(10_000_000) }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("app_settings")
+      .upsert({ key: "default_low_stock_threshold", value: data.value, updated_at: new Date().toISOString() });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 export const upsertProduct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
