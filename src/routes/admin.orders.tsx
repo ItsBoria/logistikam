@@ -114,6 +114,27 @@ function OrdersPage() {
     } catch (e: any) { toast.error(e.message); }
   }
 
+  async function removeOrder(id: string) {
+    if (!confirm("למחוק את ההזמנה לצמיתות?")) return;
+    try {
+      await deleteOrderFn({ data: { id } });
+      toast.success("ההזמנה נמחקה");
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function runCleanup() {
+    setCleanupBusy(true);
+    try {
+      const iso = new Date(cleanupBefore + "T00:00:00").toISOString();
+      const res = await deleteOldFn({ data: { before: iso, only_completed: cleanupOnlyDone } });
+      toast.success(`נמחקו ${res.deleted} הזמנות`);
+      setCleanupOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e: any) { toast.error(e.message); }
+    finally { setCleanupBusy(false); }
+  }
+
   function exportExcel() {
     if (!orders?.length) return;
     const rows = orders.flatMap((o: any) => (o.order_items as any[]).map(it => ({
