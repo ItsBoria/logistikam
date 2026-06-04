@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const ADMIN_EMAIL_DOMAIN = "admins.local";
 const usernameSchema = z.string().min(2).max(40).regex(/^[a-zA-Z0-9_.-]+$/, "שם משתמש לא תקין");
+const identifierSchema = z.string().min(2).max(254);
 
 function synthEmail(username: string) {
   return `${username.trim().toLowerCase()}@${ADMIN_EMAIL_DOMAIN}`;
@@ -15,27 +16,40 @@ export const adminAuthStatus = createServerFn({ method: "GET" }).handler(async (
   return { needsBootstrap: (count ?? 0) === 0 };
 });
 
-// Resolves a username to the actual email used by Supabase Auth.
-// Tries synthetic `<username>@admins.local` first, then falls back to any
-// existing admin whose email local-part matches the username (legacy admins).
+// Resolves either an email or a username to the actual auth email.
 export const resolveAdminEmail = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ username: usernameSchema }).parse(input))
+  .inputValidator((input) => z.object({ identifier: identifierSchema }).parse(input))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const wanted = data.username.trim().toLowerCase();
-    const synth = synthEmail(wanted);
+    const raw = data.identifier.trim();
+    const lower = raw.toLowerCase();
 
     const { data: list } = await supabaseAdmin.auth.admin.listUsers();
     const users = list?.users ?? [];
 
-    // 1) exact synthetic match
+    // Direct email match
+    if (lower.includes("@")) {
+      const found = users.find((u) => (u.email || "").toLowerCase() === lower);
+      return { email: found?.email ?? null };
+    }
+
+    // Synthetic <username>@admins.local
+    const synth = synthEmail(lower);
     const direct = users.find((u) => (u.email || "").toLowerCase() === synth);
     if (direct) return { email: direct.email! };
 
-    // 2) legacy admin: match by local-part among users who have admin role
+    // user_metadata.username match (admins created with real email + username)
+    const byMeta = users.find(
+      (u) => ((u.user_metadata as any)?.username || "").toString().toLowerCase() === lower,
+    );
+    if (byMeta) return { email: byMeta.email! };
+
+    // Legacy: admin whose email local-part matches the username
     const { data: roles } = await supabaseAdmin.from("user_roles").select("user_id").eq("role", "admin");
     const adminIds = new Set((roles ?? []).map((r: any) => r.user_id));
-    const legacy = users.find((u) => adminIds.has(u.id) && ((u.email || "").split("@")[0] || "").toLowerCase() === wanted);
+    const legacy = users.find(
+      (u) => adminIds.has(u.id) && ((u.email || "").split("@")[0] || "").toLowerCase() === lower,
+    );
     if (legacy) return { email: legacy.email! };
 
     return { email: null as string | null };
