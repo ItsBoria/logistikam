@@ -35,6 +35,7 @@ const teamOrdersQueryOptions = (pin: string) => queryOptions({
 });
 
 export const Route = createFileRoute("/shop/orders")({
+  ssr: false,
   beforeLoad: () => {
     const session = getTeamSession();
     if (!session?.pin) {
@@ -57,13 +58,6 @@ export const Route = createFileRoute("/shop/orders")({
   ),
   head: () => ({ meta: [{ title: "ההזמנות שלי" }] }),
   component: OrdersPage,
-});
-
-export const TrailingSlashRoute = createFileRoute("/shop/orders/")({
-  beforeLoad: () => {
-    throw redirect({ to: "/shop/orders", replace: true });
-  },
-  component: () => null,
 });
 
 function OrdersPage() {

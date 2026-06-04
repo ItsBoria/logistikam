@@ -269,7 +269,7 @@ export const bulkImportProducts = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const payload = data.rows.map(r => ({
       name: r.name, description: r.description ?? null,
-      price: addVat(r.price), stock: r.stock,
+      price: r.price, stock: r.stock,
       category: r.category ?? null,
       image_url: r.image_url || null,
       active: true,
