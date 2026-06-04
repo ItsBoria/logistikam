@@ -3,13 +3,13 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
-import { listReplacementRequests, decideReplacementRequest } from "@/lib/replacement-admin.functions";
+import { listReplacementRequests, updateReplacementStatus } from "@/lib/replacement-admin.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Check, X } from "lucide-react";
+import { Loader2, Bell, CheckCheck, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/replacements")({
@@ -19,57 +19,70 @@ export const Route = createFileRoute("/admin/replacements")({
 });
 
 const STATUS_LABEL: Record<string, string> = {
-  awaiting_approval: "ממתינה",
-  approved: "אושרה",
-  rejected: "נדחתה",
+  preparing: "בהכנה",
+  ready: "מוכן לאיסוף",
+  done: "נאסף",
+  cancelled: "בוטל",
 };
 const STATUS_COLOR: Record<string, string> = {
-  awaiting_approval: "bg-warning text-warning-foreground",
-  approved: "bg-success text-success-foreground",
-  rejected: "bg-destructive/15 text-destructive",
+  preparing: "bg-warning text-warning-foreground",
+  ready: "bg-primary text-primary-foreground",
+  done: "bg-success text-success-foreground",
+  cancelled: "bg-destructive/15 text-destructive",
 };
 
 function Page() {
   const qc = useQueryClient();
   const listFn = useServerFn(listReplacementRequests);
-  const decideFn = useServerFn(decideReplacementRequest);
-  const [statusFilter, setStatusFilter] = useState<string>("awaiting_approval");
+  const updateFn = useServerFn(updateReplacementStatus);
+  const [statusFilter, setStatusFilter] = useState<string>("preparing");
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-replacements", statusFilter],
     queryFn: () => listFn({ data: { status: statusFilter === "all" ? null : (statusFilter as any) } }),
   });
 
-  const [approving, setApproving] = useState<any | null>(null);
+  const [closing, setClosing] = useState<any | null>(null);
   const [returnBalai, setReturnBalai] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
 
-  function openApprove(req: any) {
+  function openClose(req: any) {
     const map: Record<string, boolean> = {};
     for (const it of req.replacement_request_items ?? []) map[it.id] = true;
     setReturnBalai(map);
-    setApproving(req);
+    setClosing(req);
   }
 
-  async function confirmApprove() {
+  function invalidate() {
+    qc.invalidateQueries({ queryKey: ["admin-replacements"] });
+    qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+  }
+
+  async function markReady(id: string) {
+    try {
+      await updateFn({ data: { id, action: "ready" } });
+      toast.success("נשלחה הודעה לצוות שהבקשה מוכנה");
+      invalidate();
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function confirmDone() {
     setBusy(true);
     try {
-      await decideFn({ data: { id: approving.id, decision: "approved", return_balai: returnBalai } });
-      toast.success("הבקשה אושרה");
-      setApproving(null);
-      qc.invalidateQueries({ queryKey: ["admin-replacements"] });
-      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      await updateFn({ data: { id: closing.id, action: "done", return_balai: returnBalai } });
+      toast.success("הבקשה הושלמה");
+      setClosing(null);
+      invalidate();
     } catch (e: any) { toast.error(e.message); }
     finally { setBusy(false); }
   }
 
-  async function reject(id: string) {
-    if (!confirm("לדחות את הבקשה?")) return;
+  async function cancel(id: string) {
+    if (!confirm("לבטל את הבקשה? המלאי יוחזר.")) return;
     try {
-      await decideFn({ data: { id, decision: "rejected" } });
-      toast.success("הבקשה נדחתה");
-      qc.invalidateQueries({ queryKey: ["admin-replacements"] });
-      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      await updateFn({ data: { id, action: "cancel" } });
+      toast.success("הבקשה בוטלה והמלאי הוחזר");
+      invalidate();
     } catch (e: any) { toast.error(e.message); }
   }
 
@@ -80,9 +93,10 @@ function Page() {
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="awaiting_approval">ממתינות</SelectItem>
-            <SelectItem value="approved">אושרו</SelectItem>
-            <SelectItem value="rejected">נדחו</SelectItem>
+            <SelectItem value="preparing">בהכנה</SelectItem>
+            <SelectItem value="ready">מוכן לאיסוף</SelectItem>
+            <SelectItem value="done">נאסף</SelectItem>
+            <SelectItem value="cancelled">בוטלו</SelectItem>
             <SelectItem value="all">הכל</SelectItem>
           </SelectContent>
         </Select>
@@ -113,24 +127,32 @@ function Page() {
                   </ul>
                   {r.notes && <p className="text-sm mt-2 bg-muted p-2 rounded">הערה: {r.notes}</p>}
                 </div>
-                {r.status === "awaiting_approval" && (
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => reject(r.id)}><X className="w-4 h-4 ml-1" /> דחייה</Button>
-                    <Button onClick={() => openApprove(r)}><Check className="w-4 h-4 ml-1" /> אישור</Button>
-                  </div>
-                )}
+                <div className="flex gap-2 flex-wrap">
+                  {r.status === "preparing" && (
+                    <>
+                      <Button variant="outline" onClick={() => cancel(r.id)}><X className="w-4 h-4 ml-1" /> ביטול</Button>
+                      <Button onClick={() => markReady(r.id)}><Bell className="w-4 h-4 ml-1" /> מוכן לאיסוף</Button>
+                    </>
+                  )}
+                  {r.status === "ready" && (
+                    <>
+                      <Button variant="outline" onClick={() => cancel(r.id)}><X className="w-4 h-4 ml-1" /> ביטול</Button>
+                      <Button onClick={() => openClose(r)}><CheckCheck className="w-4 h-4 ml-1" /> נאסף / סיום</Button>
+                    </>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
         </div>
       )}
 
-      <Dialog open={!!approving} onOpenChange={(o) => !o && setApproving(null)}>
+      <Dialog open={!!closing} onOpenChange={(o) => !o && setClosing(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>אישור בקשת החלפה</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">סמן לאילו פריטים הצוות החזיר את היחידה שבורה (תועבר לבלאי).</p>
+          <DialogHeader><DialogTitle>סגירת בקשת החלפה</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">סמן לאילו פריטים הצוות החזיר את היחידה השבורה (תועבר לבלאי).</p>
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {(approving?.replacement_request_items ?? []).map((it: any) => (
+            {(closing?.replacement_request_items ?? []).map((it: any) => (
               <label key={it.id} className="flex items-center gap-3 p-2 border rounded">
                 <Checkbox
                   checked={returnBalai[it.id] ?? true}
@@ -142,9 +164,9 @@ function Page() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setApproving(null)}>ביטול</Button>
-            <Button onClick={confirmApprove} disabled={busy}>
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "אישור"}
+            <Button variant="outline" onClick={() => setClosing(null)}>ביטול</Button>
+            <Button onClick={confirmDone} disabled={busy}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "סיום"}
             </Button>
           </DialogFooter>
         </DialogContent>
