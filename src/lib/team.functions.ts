@@ -128,7 +128,72 @@ export const placeOrder = createServerFn({ method: "POST" })
       }
     }
 
+    // Budget threshold push notifications (50/80/100% of monthly limit)
+    if (limit > 0) {
+      try {
+        const newSpent = spent + total;
+        const monthDate = new Date();
+        monthDate.setUTCDate(1);
+        monthDate.setUTCHours(0, 0, 0, 0);
+        const month = monthDate.toISOString().slice(0, 10);
+        const thresholds = [50, 80, 100];
+        for (const t of thresholds) {
+          const crossed = newSpent >= (limit * t) / 100;
+          if (!crossed) continue;
+          const { error: insErr } = await supabaseAdmin
+            .from("team_budget_alerts")
+            .insert({ team_id: team.id, threshold: t, month });
+          if (insErr) continue; // unique-violation = already alerted this month
+          const pct = Math.min(100, Math.round((newSpent / limit) * 100));
+          const title = t >= 100 ? "חרגת מהמסגרת החודשית" : `ניצול תקציב ${t}%`;
+          const body = t >= 100
+            ? `הצוות חרג מהמסגרת החודשית. נוצל ${pct}% מתקציב חודש זה.`
+            : `הצוות ניצל ${pct}% מהתקציב החודשי.`;
+          const { sendPushToTeam } = await import("./push.server");
+          await sendPushToTeam(team.id, { title, body, url: "/shop/orders" })
+            .catch((e) => console.warn("[budget push] failed:", e?.message));
+        }
+      } catch (e: any) {
+        console.warn("[budget alerts] failed:", e?.message);
+      }
+    }
+
     return { order_id: order.id, status, requires_approval: requiresApproval, total };
+  });
+
+// Build a cart suggestion from a previous order — returns available items + a list of skipped ones.
+export const repeatOrder = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ pin: z.string().min(1), order_id: z.string().uuid() }).parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: team } = await supabaseAdmin
+      .from("teams").select("id").eq("pin", data.pin.trim()).eq("active", true).maybeSingle();
+    if (!team) throw new Error("צוות לא תקין");
+    const { data: order } = await supabaseAdmin
+      .from("orders").select("id, team_id, order_items(product_id, quantity, name)")
+      .eq("id", data.order_id).maybeSingle();
+    if (!order || order.team_id !== team.id) throw new Error("הזמנה לא נמצאה");
+
+    const productIds = (order.order_items as any[])
+      .map((i) => i.product_id)
+      .filter((x): x is string => !!x);
+    const { data: products } = productIds.length
+      ? await supabaseAdmin.from("products").select("id, name, stock, active").in("id", productIds)
+      : { data: [] as any[] };
+
+    const available: Array<{ product_id: string; quantity: number }> = [];
+    const skipped: string[] = [];
+    for (const it of order.order_items as any[]) {
+      if (!it.product_id) { skipped.push(it.name); continue; }
+      const p = (products ?? []).find((x: any) => x.id === it.product_id);
+      if (!p || !p.active) { skipped.push(it.name); continue; }
+      const qty = Math.min(Number(it.quantity), Number(p.stock));
+      if (qty <= 0) { skipped.push(it.name); continue; }
+      available.push({ product_id: it.product_id, quantity: qty });
+    }
+    return { items: available, skipped };
   });
 
 export const getTeamOrders = createServerFn({ method: "POST" })
