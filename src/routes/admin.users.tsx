@@ -75,12 +75,17 @@ function Admins() {
         <DialogContent>
           <DialogHeader><DialogTitle>הוספת מנהל</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><label className="text-sm">אימייל</label><Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" dir="ltr" /></div>
+            <div><label className="text-sm">אימייל</label><Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" dir="ltr" placeholder="name@example.com" /></div>
+            <div>
+              <label className="text-sm">שם משתמש</label>
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} type="text" dir="ltr" placeholder="admin" />
+              <p className="text-xs text-muted-foreground mt-1">אותיות באנגלית, מספרים, נקודה, קו תחתון, מקף (2-40 תווים)</p>
+            </div>
             <div><label className="text-sm">סיסמה (לפחות 8 תווים)</label><Input value={password} onChange={(e) => setPassword(e.target.value)} type="password" dir="ltr" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>ביטול</Button>
-            <Button onClick={create} disabled={!email || password.length < 8}>הוסף</Button>
+            <Button onClick={create} disabled={!email || !/^[a-zA-Z0-9_.-]{2,40}$/.test(username) || password.length < 8}>הוסף</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
