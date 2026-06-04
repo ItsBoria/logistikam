@@ -419,3 +419,36 @@ export const updateOrderItems = createServerFn({ method: "POST" })
 
     return { ok: true, total };
   });
+
+export const deleteOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("order_items").delete().eq("order_id", data.id);
+    const { error } = await supabaseAdmin.from("orders").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteOldOrders = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    before: z.string().min(1),
+    only_completed: z.boolean().optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let q = supabaseAdmin.from("orders").select("id").lt("created_at", data.before);
+    if (data.only_completed) q = q.in("status", ["completed", "cancelled"]);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    const ids = (rows ?? []).map((r: any) => r.id);
+    if (!ids.length) return { deleted: 0 };
+    await supabaseAdmin.from("order_items").delete().in("order_id", ids);
+    const { error: delErr } = await supabaseAdmin.from("orders").delete().in("id", ids);
+    if (delErr) throw new Error(delErr.message);
+    return { deleted: ids.length };
+  });

@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
-import { listOrders, updateOrderStatus, listTeams, updateOrderItems } from "@/lib/admin.functions";
+import { listOrders, updateOrderStatus, listTeams, updateOrderItems, deleteOrder, deleteOldOrders } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Download, Filter, X, Phone, User, Pencil, Plus, Minus, Trash2 } from "lucide-react";
+import { Download, Filter, X, Phone, User, Pencil, Plus, Minus, Trash2, Eraser } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -46,12 +46,21 @@ function OrdersPage() {
   const updateFn = useServerFn(updateOrderStatus);
   const teamsFn = useServerFn(listTeams);
   const updateItemsFn = useServerFn(updateOrderItems);
+  const deleteOrderFn = useServerFn(deleteOrder);
+  const deleteOldFn = useServerFn(deleteOldOrders);
 
   const [teamId, setTeamId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [editing, setEditing] = useState<any>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [cleanupBefore, setCleanupBefore] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 3);
+    return d.toISOString().slice(0, 10);
+  });
+  const [cleanupOnlyDone, setCleanupOnlyDone] = useState(true);
+  const [cleanupBusy, setCleanupBusy] = useState(false);
 
   const { data: teams } = useQuery({ queryKey: ["admin-teams"], queryFn: () => teamsFn() });
   const { data: orders, isLoading } = useQuery({
@@ -105,6 +114,27 @@ function OrdersPage() {
     } catch (e: any) { toast.error(e.message); }
   }
 
+  async function removeOrder(id: string) {
+    if (!confirm("למחוק את ההזמנה לצמיתות?")) return;
+    try {
+      await deleteOrderFn({ data: { id } });
+      toast.success("ההזמנה נמחקה");
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function runCleanup() {
+    setCleanupBusy(true);
+    try {
+      const iso = new Date(cleanupBefore + "T00:00:00").toISOString();
+      const res = await deleteOldFn({ data: { before: iso, only_completed: cleanupOnlyDone } });
+      toast.success(`נמחקו ${res.deleted} הזמנות`);
+      setCleanupOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (e: any) { toast.error(e.message); }
+    finally { setCleanupBusy(false); }
+  }
+
   function exportExcel() {
     if (!orders?.length) return;
     const rows = orders.flatMap((o: any) => (o.order_items as any[]).map(it => ({
@@ -140,9 +170,14 @@ function OrdersPage() {
           <h1 className="text-2xl font-bold">הזמנות</h1>
           <p className="text-sm text-muted-foreground">{orders?.length ?? 0} הזמנות · סה״כ ₪{totalSum.toFixed(0)}</p>
         </div>
-        <Button onClick={exportExcel} disabled={!orders?.length}>
-          <Download className="w-4 h-4 ml-2" /> ייצוא לאקסל
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setCleanupOpen(true)}>
+            <Eraser className="w-4 h-4 ml-2" /> מחיקת הזמנות ישנות
+          </Button>
+          <Button onClick={exportExcel} disabled={!orders?.length}>
+            <Download className="w-4 h-4 ml-2" /> ייצוא לאקסל
+          </Button>
+        </div>
       </div>
 
       <Card className="p-4">
@@ -212,6 +247,9 @@ function OrdersPage() {
                     <Button variant="outline" size="sm" onClick={() => startEdit(o)}>
                       <Pencil className="w-4 h-4 ml-1" /> ערוך פריטים
                     </Button>
+                    <Button variant="ghost" size="sm" onClick={() => removeOrder(o.id)} className="text-destructive hover:text-destructive">
+                      <Trash2 className="w-4 h-4 ml-1" /> מחק הזמנה
+                    </Button>
                   </div>
                 </div>
               </AccordionContent>
@@ -263,6 +301,29 @@ function OrdersPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>ביטול</Button>
             <Button onClick={saveEdit}>שמירה</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cleanupOpen} onOpenChange={setCleanupOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>מחיקת הזמנות ישנות</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">פעולה זו תמחק לצמיתות את כל ההזמנות שנוצרו לפני התאריך שתבחר.</p>
+            <div>
+              <label className="text-sm">מחק הזמנות לפני</label>
+              <Input type="date" value={cleanupBefore} onChange={(e) => setCleanupBefore(e.target.value)} />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={cleanupOnlyDone} onChange={(e) => setCleanupOnlyDone(e.target.checked)} />
+              מחק רק הזמנות שהושלמו או בוטלו
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCleanupOpen(false)} disabled={cleanupBusy}>ביטול</Button>
+            <Button variant="destructive" onClick={runCleanup} disabled={cleanupBusy}>
+              {cleanupBusy ? "מוחק..." : "מחק"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

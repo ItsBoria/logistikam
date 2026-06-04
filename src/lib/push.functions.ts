@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 export const getVapidPublicKey = createServerFn({ method: "GET" }).handler(async () => {
-  return { key: process.env.VAPID_PUBLIC_KEY || "" };
+  const raw = (process.env.VAPID_PUBLIC_KEY || "").trim().replace(/^["']|["']$/g, "");
+  // keep only base64url chars
+  const key = raw.replace(/[^A-Za-z0-9_\-]/g, "");
+  return { key };
 });
 
 const subSchema = z.object({
