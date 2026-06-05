@@ -1,9 +1,9 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getReplacementShop, submitReplacementRequest, getTeamReplacementRequests } from "@/lib/replacements.functions";
-import { getTeamSession, setTeamSession } from "@/lib/team-session";
+import { getTeamSession } from "@/lib/team-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,7 +95,7 @@ function ReplacementsPage() {
     } finally { setPlacing(false); }
   }
 
-  function logout() { setTeamSession(null); navigate({ to: "/" }); }
+  
 
   if (!session) return null;
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
