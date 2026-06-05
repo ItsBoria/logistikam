@@ -1,17 +1,18 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getReplacementShop, submitReplacementRequest, getTeamReplacementRequests } from "@/lib/replacements.functions";
-import { getTeamSession, setTeamSession } from "@/lib/team-session";
+import { getTeamSession } from "@/lib/team-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, LogOut, Loader2, Trash2, ClipboardList, Store, Replace } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Loader2, Trash2, Replace } from "lucide-react";
 import { toast } from "sonner";
+import { BottomTabBar } from "@/components/bottom-tab-bar";
 
 export const Route = createFileRoute("/shop/replacements")({
   ssr: false,
@@ -94,7 +95,7 @@ function ReplacementsPage() {
     } finally { setPlacing(false); }
   }
 
-  function logout() { setTeamSession(null); navigate({ to: "/" }); }
+  
 
   if (!session) return null;
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -102,19 +103,14 @@ function ReplacementsPage() {
   return (
     <div className="min-h-screen bg-secondary/30">
       <header className="bg-card border-b sticky top-0 z-30 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div>
             <h1 className="font-bold text-lg flex items-center gap-2"><Replace className="w-5 h-5" /> החלפת פריט שבור</h1>
             <p className="text-xs text-muted-foreground">{data?.team.name} · ללא חיוב מתקציב</p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button asChild variant="outline" size="sm"><Link to="/shop"><Store className="w-4 h-4 ml-2" /> חנות</Link></Button>
-            <Button asChild variant="outline" size="sm"><Link to="/shop/orders"><ClipboardList className="w-4 h-4 ml-2" /> הזמנות</Link></Button>
-            <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
-              <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
-            </Button>
-            <Button variant="ghost" size="sm" onClick={logout}><LogOut className="w-4 h-4" /></Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
+            <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
+          </Button>
         </div>
       </header>
 
@@ -184,13 +180,15 @@ function ReplacementsPage() {
       </main>
 
       {itemCount > 0 && (
-        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t shadow-lg p-3 flex items-center gap-3">
+        <div className="sm:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t shadow-lg p-3 flex items-center gap-3">
           <div className="flex-1 text-xs text-muted-foreground">{itemCount} פריטים להחלפה</div>
           <Button className="h-12 px-6 text-base" onClick={() => setCheckout(true)}>
             <ShoppingCart className="w-5 h-5 ml-2" /> שליחת בקשה
           </Button>
         </div>
       )}
+
+      <BottomTabBar />
 
       <Dialog open={checkout} onOpenChange={setCheckout}>
         <DialogContent className="max-w-lg">

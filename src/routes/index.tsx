@@ -7,7 +7,8 @@ import { useSupabaseSession } from "@/hooks/use-supabase-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, ShoppingBag, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -51,13 +52,11 @@ function Home() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-background via-secondary/30 to-accent/40">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-background via-secondary/40 to-accent/30">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg">
-            <ShoppingBag className="w-8 h-8" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">מערכת הזמנות צוותים</h1>
+          <BrandLogo size={96} className="mx-auto mb-5 drop-shadow-xl rounded-3xl" />
+          <h1 className="text-3xl font-bold tracking-tight">ברוכים הבאים</h1>
           <p className="text-muted-foreground mt-2">היכנס/י עם קוד הצוות שלך</p>
         </div>
 

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { toast } from "sonner";
+import { BottomTabBar } from "@/components/bottom-tab-bar";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "ממתינה",
@@ -211,6 +212,7 @@ function OrdersPage() {
           </Accordion>
         )}
       </main>
+      <BottomTabBar />
     </div>
   );
 }
