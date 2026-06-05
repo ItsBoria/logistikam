@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff, Loader2, Smartphone } from "lucide-react";
+import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   getExistingSubscription,
@@ -101,8 +101,11 @@ export function PushToggle({ pin }: { pin: string }) {
   }
 
   if (iosNeedsInstall) {
-    // InstallButton in the "עוד" sheet handles the Add-to-Home-Screen flow.
-    return null;
+    return (
+      <Button variant="outline" size="sm" onClick={enable}>
+        <Bell className="w-4 h-4 ml-2" /> הפעל התראות
+      </Button>
+    );
   }
 
   if (!supported) {
