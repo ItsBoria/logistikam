@@ -234,9 +234,9 @@ function Shop() {
         <div className="h-20 sm:hidden" aria-hidden />
       </main>
 
-      {/* Sticky checkout bar (mobile) */}
+      {/* Sticky checkout bar (mobile) — sits above bottom tab bar */}
       {itemCount > 0 && (
-        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-card border-t shadow-lg p-3 flex items-center gap-3">
+        <div className="sm:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t shadow-lg p-3 flex items-center gap-3">
           <div className="flex-1">
             <div className="text-xs text-muted-foreground">סל: {itemCount} פריטים</div>
             <div className="font-bold text-lg">{formatCurrency(total)}</div>
@@ -246,6 +246,8 @@ function Shop() {
           </Button>
         </div>
       )}
+
+      <BottomTabBar />
 
 
       <Dialog open={checkout} onOpenChange={setCheckout}>
