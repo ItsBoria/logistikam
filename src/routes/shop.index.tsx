@@ -149,7 +149,6 @@ function Shop() {
             {limit > 0 && <> · נותר {formatCurrency(Math.max(0, remaining))} מ-{formatCurrency(limit)}</>}
           </p>
           <div className="mt-3 flex items-center justify-center gap-2">
-            <PushToggle pin={session!.pin} />
             <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
               <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
             </Button>
@@ -236,7 +235,7 @@ function Shop() {
 
       {/* Sticky checkout bar (mobile) — sits above bottom tab bar */}
       {itemCount > 0 && (
-        <div className="sm:hidden fixed bottom-16 inset-x-0 z-30 bg-card border-t shadow-lg p-3 flex items-center gap-3">
+        <div className="sm:hidden fixed inset-x-0 z-50 bg-card border-t shadow-lg p-3 flex items-center gap-3" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
           <div className="flex-1">
             <div className="text-xs text-muted-foreground">סל: {itemCount} פריטים</div>
             <div className="font-bold text-lg">{formatCurrency(total)}</div>
@@ -247,7 +246,7 @@ function Shop() {
         </div>
       )}
 
-      <BottomTabBar />
+      <BottomTabBar pin={session!.pin} />
 
 
       <Dialog open={checkout} onOpenChange={setCheckout}>

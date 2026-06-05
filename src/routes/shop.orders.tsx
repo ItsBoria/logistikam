@@ -212,7 +212,7 @@ function OrdersPage() {
           </Accordion>
         )}
       </main>
-      <BottomTabBar />
+      <BottomTabBar pin={session?.pin} />
     </div>
   );
 }
