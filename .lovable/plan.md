@@ -1,35 +1,22 @@
-## Goal
-Match the look of the mockup: new blue "M-bag" logo, brand blue, welcoming shop header, and a bottom tab bar.
+## Fixes
 
-## Steps
+### 1. Floating cart bar collides with bottom nav
+- In `shop.index.tsx` and `shop.replacements.tsx`, raise the cart bar above the nav: `z-50` (nav stays `z-40`) and position it at `bottom-[calc(4rem+env(safe-area-inset-bottom))]` so it always sits flush above the tabs on devices with a home indicator.
 
-1. **Upload logo as CDN asset**
-   - `lovable-assets create --file /mnt/user-uploads/28F769C0-8AF9-405A-B0DF-DD3F47AF5326.png --filename logikam-logo.png > src/assets/logikam-logo.png.asset.json`
-   - Use it for: PWA favicon (`public/manifest.webmanifest`, `__root.tsx` link tags), login screen header, shop header, splash.
+### 2. Move Push toggle + Add to Home Screen into "עוד" sheet
+- Update `BottomTabBar` to take a `pin` prop.
+- Inside the "עוד" sheet render, in order:
+  1. `<InstallButton />` — new component
+  2. `<PushToggle pin={pin} />`
+  3. Existing "יציאה" button.
+- Pass `pin` from `/shop`, `/shop/orders`, `/shop/replacements`.
+- Remove the now-duplicate `<PushToggle>` from the shop header.
 
-2. **Brand color**
-   - Set `--primary` in `src/styles.css` to the logo blue (~`oklch(0.48 0.22 264)` ≈ `#1E40FF`) and a soft `--primary-glow`. Keep semantic tokens (no hardcoded colors in components).
+### 3. New `InstallButton` component (`src/components/install-button.tsx`)
+- Listens for `beforeinstallprompt` on mount, stores the event, calls `prompt()` on click — standard Android/Chrome install flow.
+- If already running standalone (`isStandaloneInstalled()`) → render nothing.
+- If iOS Safari (not standalone) → show a button that opens a toast with the share-sheet instructions (mirrors `PushToggle`'s iOS hint).
+- Otherwise, if the install event was captured → show "הוסף למסך הבית" button.
+- If none of the above (desktop Chrome without prompt, unsupported browser) → render nothing so the sheet stays clean.
 
-3. **Login screen (`src/routes/index.tsx`)**
-   - Replace the `ShoppingBag` icon block with the new logo image.
-   - Keep PIN form, just refine spacing/typography to match the mockup's clean centered look.
-
-4. **Shop screen (`src/routes/shop.index.tsx`)**
-   - Header: centered logo + "ברוכים הבאים" + subtitle "מה תרצו להזמין היום?".
-   - Add search input ("חיפוש מוצר…"), category dropdown ("כל הקטגוריות"), and "במלאי בלבד" toggle above the grid.
-   - Product card: image, title, "1 יח׳ · מלאי: N", price, full-width blue "הוסף" button (matches mockup).
-   - Replace top header action buttons with a fixed **bottom tab bar**: בית · קטגוריות · הזמנות שלי · עוד.
-   - "עוד" opens a sheet with: החלפות, יציאה, (admin link if relevant).
-
-5. **Other shop routes** (`shop.orders.tsx`, `shop.replacements.tsx`)
-   - Same bottom tab bar + logo header for consistency.
-
-6. **PWA**
-   - Update `public/manifest.webmanifest` name/icons to the new logo. Update theme color to brand blue.
-
-## Out of scope
-- No business-logic changes (orders, replacements, admin flows untouched).
-- Admin screens keep their current shell.
-
-## Open question
-Bottom tab "עוד" — should it include a link to **כניסת מנהלים** like the current login screen has, or hide that entirely from teams?
+No backend or business logic changes.
