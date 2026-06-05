@@ -1,9 +1,11 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { getShopData, placeOrder } from "@/lib/team.functions";
 import { PushToggle } from "@/components/push-toggle";
+import { BrandLogo } from "@/components/brand-logo";
+import { BottomTabBar } from "@/components/bottom-tab-bar";
 
 import { getTeamSession, setTeamSession } from "@/lib/team-session";
 import { VAT_LABEL, formatCurrency } from "@/lib/pricing";
@@ -15,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, LogOut, AlertTriangle, Loader2, Trash2, Search, ClipboardList, Replace } from "lucide-react";
+import { ShoppingCart, Plus, Minus, AlertTriangle, Loader2, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -138,25 +140,19 @@ function Shop() {
   return (
     <div className="min-h-screen bg-secondary/30">
       <header className="bg-card border-b sticky top-0 z-30 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="font-bold text-lg">{data?.team.name}</h1>
-            <p className="text-xs text-muted-foreground">
-              {limit > 0 ? <>נוצל: {formatCurrency(spent)} / {formatCurrency(limit)} · נותר {formatCurrency(Math.max(0, remaining))}</> : "ללא מגבלת חודש"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button asChild variant="outline" size="sm">
-              <Link to="/shop/orders"><ClipboardList className="w-4 h-4 ml-2" /> ההזמנות שלי</Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/shop/replacements"><Replace className="w-4 h-4 ml-2" /> החלפות</Link>
-            </Button>
+        <div className="max-w-3xl mx-auto px-4 pt-5 pb-4 text-center">
+          <BrandLogo size={56} className="mx-auto mb-2 rounded-2xl drop-shadow" />
+          <h1 className="text-xl font-bold tracking-tight">ברוכים הבאים</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            {data?.team.name}
+            {limit > 0 && <> · נותר {formatCurrency(Math.max(0, remaining))} מ-{formatCurrency(limit)}</>}
+          </p>
+          <div className="mt-3 flex items-center justify-center gap-2">
             <PushToggle pin={session!.pin} />
             <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
               <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
             </Button>
-            <Button variant="ghost" size="sm" onClick={logout}><LogOut className="w-4 h-4" /></Button>
           </div>
         </div>
         {willExceed ? (
