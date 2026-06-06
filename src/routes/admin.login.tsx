@@ -20,7 +20,9 @@ export const Route = createFileRoute("/admin/login")({
 function AdminLogin() {
   const navigate = useNavigate();
   const { session } = useSupabaseSession();
-  useEffect(() => { if (session) navigate({ to: "/admin", replace: true }); }, [session, navigate]);
+  useEffect(() => {
+    if (session) navigate({ to: "/admin", replace: true });
+  }, [session, navigate]);
 
   const statusFn = useServerFn(adminAuthStatus);
   const resolveFn = useServerFn(resolveAdminEmail);
@@ -40,8 +42,12 @@ function AdminLogin() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw new Error("שם משתמש או סיסמה שגויים");
       toast.success("ברוך/ה הבא/ה");
-    } catch (e: any) { toast.error(e.message || "שגיאה"); }
-    finally { setLoading(false); }
+      navigate({ to: "/admin", replace: true });
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onBootstrap(e: React.FormEvent) {
@@ -52,8 +58,11 @@ function AdminLogin() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success("מנהל ראשי נוצר");
-    } catch (e: any) { toast.error(e.message || "שגיאה"); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const needsBootstrap = status?.needsBootstrap;
@@ -66,14 +75,14 @@ function AdminLogin() {
             <ShieldCheck className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">כניסת מנהלים</h1>
-          <p className="text-muted-foreground mt-2">
-            {needsBootstrap ? "אתחול מנהל ראשי" : "התחבר/י לפאנל ניהול"}
-          </p>
+          <p className="text-muted-foreground mt-2">{needsBootstrap ? "אתחול מנהל ראשי" : "התחבר/י לפאנל ניהול"}</p>
         </div>
         <Card className="p-8 shadow-xl">
           <form onSubmit={needsBootstrap ? onBootstrap : onSignIn} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">{needsBootstrap ? "שם משתמש" : "שם משתמש או אימייל"}</label>
+              <label className="block text-sm font-medium mb-2">
+                {needsBootstrap ? "שם משתמש" : "שם משתמש או אימייל"}
+              </label>
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
