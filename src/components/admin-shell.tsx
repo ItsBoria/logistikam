@@ -13,13 +13,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   // Ensure no leftover team session while in admin mode
-  useEffect(() => { if (session) setTeamSession(null); }, [session]);
+  useEffect(() => {
+    if (session) setTeamSession(null);
+  }, [session]);
 
   const { data: isAdmin, isLoading: roleLoading } = useQuery({
     enabled: !!session,
     queryKey: ["is-admin", session?.user.id],
+    staleTime: 0, // ← always re-check after sign-in
     queryFn: async () => {
-      const { data } = await supabase.from("user_roles").select("id").eq("user_id", session!.user.id).eq("role", "admin").maybeSingle();
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", session!.user.id)
+        .eq("role", "admin")
+        .maybeSingle();
       return !!data;
     },
   });
@@ -36,7 +44,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, [session, roleLoading, isAdmin, navigate]);
 
   if (loading || !session || roleLoading || !isAdmin) {
-    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const nav = [
@@ -54,13 +66,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <header className="bg-card border-b sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-6">
-            <Link to="/admin" className="font-bold text-lg">פאנל ניהול</Link>
+            <Link to="/admin" className="font-bold text-lg">
+              פאנל ניהול
+            </Link>
             <nav className="hidden md:flex items-center gap-1">
-              {nav.map(n => {
+              {nav.map((n) => {
                 const active = (n as any).exact ? path === n.to : path.startsWith(n.to) && n.to !== "/admin";
                 return (
-                  <Link key={n.to} to={n.to}
-                    className={`px-3 py-2 rounded-md text-sm flex items-center gap-2 ${active ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}>
+                  <Link
+                    key={n.to}
+                    to={n.to}
+                    className={`px-3 py-2 rounded-md text-sm flex items-center gap-2 ${active ? "bg-primary text-primary-foreground" : "hover:bg-accent"}`}
+                  >
                     <n.icon className="w-4 h-4" /> {n.label}
                   </Link>
                 );
@@ -69,16 +86,24 @@ export function AdminShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground hidden sm:inline">{session.user.email}</span>
-            <Button variant="outline" size="sm" onClick={() => supabase.auth.signOut().then(() => navigate({ to: "/admin/login" }))}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => supabase.auth.signOut().then(() => navigate({ to: "/admin/login" }))}
+            >
               <LogOut className="w-4 h-4 ml-2" /> יציאה
             </Button>
           </div>
         </div>
         <nav className="md:hidden flex items-center gap-1 px-2 pb-2 overflow-x-auto">
-          {nav.map(n => {
+          {nav.map((n) => {
             const active = (n as any).exact ? path === n.to : path.startsWith(n.to) && n.to !== "/admin";
             return (
-              <Link key={n.to} to={n.to} className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap ${active ? "bg-primary text-primary-foreground" : "bg-secondary"}`}>
+              <Link
+                key={n.to}
+                to={n.to}
+                className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap ${active ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
+              >
                 {n.label}
               </Link>
             );
