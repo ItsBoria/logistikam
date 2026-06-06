@@ -58,6 +58,7 @@ function AdminLogin() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       toast.success("מנהל ראשי נוצר");
+      navigate({ to: "/admin", replace: true });
     } catch (e: any) {
       toast.error(e.message || "שגיאה");
     } finally {
