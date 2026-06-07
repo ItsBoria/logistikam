@@ -281,7 +281,7 @@ export const deleteTeam = createServerFn({ method: "POST" })
 export const listProductsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+    await assertAdminOrStaff(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data } = await supabaseAdmin.from("products").select("*").order("name");
     const resolved = await Promise.all((data ?? []).map(async (p) => ({
@@ -290,6 +290,28 @@ export const listProductsAdmin = createServerFn({ method: "GET" })
       _raw_image_url: p.image_url, // for editing
     })));
     return resolved;
+  });
+
+// Staff-friendly stock-only update. Allows admin OR staff. Fires low-stock notification on cross.
+export const updateProductStock = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    id: z.string().uuid(),
+    stock: z.number().int().min(0).max(10_000_000),
+    low_stock_threshold: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaff(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: prev } = await supabaseAdmin
+      .from("products").select("stock").eq("id", data.id).maybeSingle();
+    if (!prev) throw new Error("מוצר לא נמצא");
+    const update: Record<string, any> = { stock: data.stock };
+    if (data.low_stock_threshold !== undefined) update.low_stock_threshold = data.low_stock_threshold;
+    const { error } = await supabaseAdmin.from("products").update(update).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await maybeNotifyLowStock(supabaseAdmin, data.id, Number(prev.stock));
+    return { ok: true };
   });
 
 // image_url accepts: empty, http(s)://..., or "storage:<path>"
