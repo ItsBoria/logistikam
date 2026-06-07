@@ -111,7 +111,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     const byUser = new Map<string, { roles: string[]; created_at: string }>();
     for (const r of roles ?? []) {
       const cur = byUser.get((r as any).user_id) ?? { roles: [], created_at: (r as any).created_at };
-      cur.roles.push((r as any).role);
+      cur.roles.push((r as any).role as string);
       // keep earliest created_at
       if (new Date((r as any).created_at) < new Date(cur.created_at)) cur.created_at = (r as any).created_at;
       byUser.set((r as any).user_id, cur);
