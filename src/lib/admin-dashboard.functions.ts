@@ -9,10 +9,17 @@ async function assertAdmin(userId: string) {
   if (!data) throw new Error("גישה לאדמין בלבד");
 }
 
+async function assertAdminOrStaff(userId: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("user_roles").select("role").eq("user_id", userId).in("role", ["admin", "staff"]);
+  if (!data || data.length === 0) throw new Error("גישה מורשית בלבד");
+}
+
 export const getAdminDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+    await assertAdminOrStaff(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const monthStart = new Date();
