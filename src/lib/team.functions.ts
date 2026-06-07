@@ -124,8 +124,52 @@ export const placeOrder = createServerFn({ method: "POST" })
     if (!requiresApproval) {
       for (const it of orderItems) {
         const p = products.find(x => x.id === it.product_id)!;
-        await supabaseAdmin.from("products").update({ stock: p.stock - it.quantity }).eq("id", p.id);
+        const newStock = p.stock - it.quantity;
+        await supabaseAdmin.from("products").update({ stock: newStock }).eq("id", p.id);
+        // Low-stock admin notification if this deduction crossed the threshold.
+        try {
+          const { data: full } = await supabaseAdmin
+            .from("products").select("id, name, low_stock_threshold, active").eq("id", p.id).maybeSingle();
+          if (full?.active) {
+            const { data: settingRow } = await supabaseAdmin
+              .from("app_settings").select("value").eq("key", "default_low_stock_threshold").maybeSingle();
+            const defaultThreshold = Number((settingRow?.value as any) ?? 5);
+            const threshold = full.low_stock_threshold ?? defaultThreshold;
+            if (p.stock > threshold && newStock <= threshold) {
+              const { sendPushToAdmins } = await import("./admin-push.server");
+              await sendPushToAdmins("low_stock", {
+                title: newStock === 0 ? "מוצר אזל מהמלאי" : "התראת מלאי נמוך",
+                body: `${full.name} — נשאר ${newStock} (סף ${threshold})`,
+                url: "/admin/notifications",
+              });
+            }
+          }
+        } catch (e: any) {
+          console.warn("[low stock notify on order] failed:", e?.message);
+        }
       }
+    }
+
+    // Notify admins about the new order (best-effort, async).
+    try {
+      const { sendPushToAdmins } = await import("./admin-push.server");
+      const itemsLine = orderItems.map((i) => `${i.name}×${i.quantity}`).join(", ");
+      const trimmed = itemsLine.length > 120 ? itemsLine.slice(0, 117) + "..." : itemsLine;
+      if (requiresApproval) {
+        await sendPushToAdmins("order_awaiting_approval", {
+          title: "הזמנה ממתינה לאישור",
+          body: `${data.ordered_by_name}: ₪${total.toFixed(0)} — ${trimmed}`,
+          url: "/admin/orders",
+        });
+      } else {
+        await sendPushToAdmins("order_created", {
+          title: "הזמנה חדשה",
+          body: `${data.ordered_by_name}: ₪${total.toFixed(0)} — ${trimmed}`,
+          url: "/admin/orders",
+        });
+      }
+    } catch (e: any) {
+      console.warn("[admin notify new order] failed:", e?.message);
     }
 
     // Budget threshold push notifications (50/80/100% of monthly limit)
