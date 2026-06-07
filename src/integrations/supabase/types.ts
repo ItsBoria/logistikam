@@ -400,7 +400,7 @@ export type Database = {
       team_month_spent: { Args: { _team_id: string }; Returns: number }
     }
     Enums: {
-      app_role: "admin"
+      app_role: "admin" | "staff"
       order_status:
         | "pending"
         | "approved"
@@ -537,7 +537,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin"],
+      app_role: ["admin", "staff"],
       order_status: [
         "pending",
         "approved",
