@@ -167,7 +167,7 @@ function DashboardPage() {
                         <span className="tabular-nums text-muted-foreground">
                           {formatCurrency(t.spent)}{t.monthly_limit > 0 ? ` / ${formatCurrency(t.monthly_limit)}` : ""}
                         </span>
-                        {!isEditing && (
+                        {!isEditing && isAdmin && (
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setEditingTeam(t.id); setLimitValue(String(t.monthly_limit)); }}>
                             <Pencil className="w-3 h-3" />
                           </Button>
