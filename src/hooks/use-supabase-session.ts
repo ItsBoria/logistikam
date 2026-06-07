@@ -7,8 +7,8 @@ import type { Session } from "@supabase/supabase-js";
 function getInitialSession(): { session: Session | null; loading: boolean } {
   // supabase stores the session in localStorage; _currentSession is the
   // in-memory cache set immediately on client init — no async needed.
-  const raw = (supabase.auth as any)._currentSession ?? null;
-  if (raw !== undefined) return { session: raw, loading: false };
+  const raw = (supabase.auth as any)._currentSession;
+  if (raw !== undefined) return { session: raw ?? null, loading: false };
   return { session: null, loading: true };
 }
 
