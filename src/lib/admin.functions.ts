@@ -102,15 +102,30 @@ export const listAdminUsers = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: roles } = await supabaseAdmin.from("user_roles").select("user_id, created_at").eq("role", "admin");
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id, role, created_at")
+      .in("role", ["admin", "staff"]);
     const { data: list } = await supabaseAdmin.auth.admin.listUsers();
-    return (roles ?? []).map(r => {
-      const u = list.users.find(x => x.id === r.user_id);
+    // Group roles per user
+    const byUser = new Map<string, { roles: string[]; created_at: string }>();
+    for (const r of roles ?? []) {
+      const cur = byUser.get((r as any).user_id) ?? { roles: [], created_at: (r as any).created_at };
+      cur.roles.push((r as any).role);
+      // keep earliest created_at
+      if (new Date((r as any).created_at) < new Date(cur.created_at)) cur.created_at = (r as any).created_at;
+      byUser.set((r as any).user_id, cur);
+    }
+    return Array.from(byUser.entries()).map(([userId, info]) => {
+      const u = list.users.find(x => x.id === userId);
       return {
-        user_id: r.user_id,
+        user_id: userId,
         email: u?.email ?? "(לא ידוע)",
         username: (u?.user_metadata as any)?.username ?? null,
-        created_at: r.created_at,
+        roles: info.roles as ("admin" | "staff")[],
+        is_admin: info.roles.includes("admin"),
+        is_staff: info.roles.includes("staff"),
+        created_at: info.created_at,
       };
     });
   });
