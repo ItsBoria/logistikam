@@ -104,6 +104,23 @@ export const submitReplacementRequest = createServerFn({ method: "POST" })
         .eq("id", l.replacement_product_id);
     }
 
+    // Notify admins about the new replacement request (best-effort).
+    try {
+      const { data: teamRow } = await supabaseAdmin
+        .from("teams").select("name").eq("id", team.id).maybeSingle();
+      const teamName = (teamRow as any)?.name ?? "צוות";
+      const itemsLine = lines.map((l) => `${l.name}×${l.quantity}`).join(", ");
+      const trimmed = itemsLine.length > 120 ? itemsLine.slice(0, 117) + "..." : itemsLine;
+      const { sendPushToAdmins } = await import("./admin-push.server");
+      await sendPushToAdmins("replacement_request", {
+        title: "בקשת החלפה חדשה",
+        body: `${teamName} (${data.ordered_by_name}): ${trimmed}`,
+        url: "/admin/replacements",
+      });
+    } catch (e: any) {
+      console.warn("[admin notify replacement] failed:", e?.message);
+    }
+
     return { request_id: req.id, status: "preparing" as const };
   });
 
