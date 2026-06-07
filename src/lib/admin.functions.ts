@@ -110,11 +110,11 @@ export const listAdminUsers = createServerFn({ method: "GET" })
     // Group roles per user
     const byUser = new Map<string, { roles: string[]; created_at: string }>();
     for (const r of roles ?? []) {
-      const cur = byUser.get((r as any).user_id) ?? { roles: [], created_at: (r as any).created_at };
-      cur.roles.push((r as any).role as string);
-      // keep earliest created_at
-      if (new Date((r as any).created_at) < new Date(cur.created_at)) cur.created_at = (r as any).created_at;
-      byUser.set((r as any).user_id, cur);
+      const row = r as any;
+      const cur = byUser.get(row.user_id) ?? { roles: [] as string[], created_at: row.created_at as string };
+      cur.roles.push(row.role as string);
+      if (new Date(row.created_at) < new Date(cur.created_at)) cur.created_at = row.created_at;
+      byUser.set(row.user_id, cur);
     }
     return Array.from(byUser.entries()).map(([userId, info]) => {
       const u = list.users.find(x => x.id === userId);
