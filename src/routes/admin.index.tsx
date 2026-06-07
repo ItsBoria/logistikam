@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
 import { getAdminDashboard, setTeamMonthlyLimit } from "@/lib/admin-dashboard.functions";
 import { updateOrderStatus, getAppSettings, setDefaultLowStockThreshold } from "@/lib/admin.functions";
+import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 function DashboardPage() {
   const qc = useQueryClient();
+  const { data: myRoles } = useAdminRoles();
+  const isAdmin = !!myRoles?.isAdmin;
   const dashFn = useServerFn(getAdminDashboard);
   const limitFn = useServerFn(setTeamMonthlyLimit);
   const statusFn = useServerFn(updateOrderStatus);
