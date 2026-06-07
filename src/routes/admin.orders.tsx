@@ -3,7 +3,7 @@ import { useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
-import { listOrders, updateOrderStatus, listTeams, updateOrderItems, deleteOrder, deleteOldOrders } from "@/lib/admin.functions";
+import { listOrders, updateOrderStatus, listTeamsBasic, updateOrderItems, deleteOrder, deleteOldOrders } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,7 +44,7 @@ function OrdersPage() {
   const qc = useQueryClient();
   const listFn = useServerFn(listOrders);
   const updateFn = useServerFn(updateOrderStatus);
-  const teamsFn = useServerFn(listTeams);
+  const teamsFn = useServerFn(listTeamsBasic);
   const updateItemsFn = useServerFn(updateOrderItems);
   const deleteOrderFn = useServerFn(deleteOrder);
   const deleteOldFn = useServerFn(deleteOldOrders);
