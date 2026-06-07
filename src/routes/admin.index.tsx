@@ -110,9 +110,12 @@ function DashboardPage() {
         <Kpi icon={<Replace className="w-5 h-5" />} label="בקשות החלפה" value={kpis.pendingReplacements} tone={kpis.pendingReplacements > 0 ? "warning" : undefined} />
         <Kpi icon={<Package className="w-5 h-5" />} label="מלאי נמוך" value={kpis.lowStock} tone={kpis.lowStock > 0 ? "warning" : undefined} />
         <Kpi icon={<ShoppingBag className="w-5 h-5" />} label="הזמנות החודש" value={kpis.monthOrders} />
-        <Kpi icon={<DollarSign className="w-5 h-5" />} label="הכנסות החודש" value={formatCurrency(kpis.monthRevenue)} />
+        {isAdmin && (
+          <Kpi icon={<DollarSign className="w-5 h-5" />} label="הכנסות החודש" value={formatCurrency(kpis.monthRevenue)} />
+        )}
         <Kpi icon={<Users className="w-5 h-5" />} label="צוותים פעילים" value={kpis.activeTeams} />
       </div>
+
 
       {/* Global low-stock threshold (admin only) */}
       {isAdmin && (
