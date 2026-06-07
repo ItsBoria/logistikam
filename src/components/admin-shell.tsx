@@ -5,10 +5,12 @@ import { useAdminRoles } from "@/hooks/use-admin-roles";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { setTeamSession } from "@/lib/team-session";
+import { AdminBottomTabBar } from "@/components/admin-bottom-tab-bar";
 import {
   LogOut, Package, Users, ShoppingBag, UserCog, Loader2,
   LayoutDashboard, Replace, Boxes, Bell,
 } from "lucide-react";
+
 
 type NavItem = {
   to: string;
@@ -144,7 +146,8 @@ export function AdminShell({
           })}
         </nav>
       </header>
-      <main className="max-w-7xl mx-auto p-4">{children}</main>
+      <main className="max-w-7xl mx-auto p-4 pb-20">{children}</main>
+      <AdminBottomTabBar role={roles.isAdmin ? "admin" : "staff"} />
     </div>
   );
 }
