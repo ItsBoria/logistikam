@@ -253,11 +253,22 @@ function OrdersPage() {
                         ))}
                       </div>
                       {order.notes ? <div className="rounded-md bg-muted p-3 text-sm">הערות: {order.notes}</div> : null}
-                      <div className="flex justify-end">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {EDITABLE_ORDER_STATUSES.has(order.status) && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => startEdit(order)}>
+                              <Pencil className="ml-2 h-4 w-4" /> ערוך
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleCancel(order.id)} className="text-destructive">
+                              <X className="ml-2 h-4 w-4" /> בטל הזמנה
+                            </Button>
+                          </>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => handleReorder(order.id)}>
                           <RotateCcw className="ml-2 h-4 w-4" /> הזמן שוב
                         </Button>
                       </div>
+
                     </div>
                   </AccordionContent>
                 </AccordionItem>
