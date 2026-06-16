@@ -1,53 +1,60 @@
-## Goal
-Let teams **edit** or **cancel** their own orders and replacement requests after submission — as long as the warehouse hasn't started handling them.
+# Improvement Ideas for the Admin Panel
 
-## When edit/cancel is allowed
+Below are concrete improvements grouped by impact. Tell me which ones to build (you can pick any combination) and I'll come back with a focused implementation plan.
 
-| Type | Editable / cancellable while status is | Locked once status becomes |
-|---|---|---|
-| Order | `pending`, `awaiting_approval` | `approved`, `preparing`, `ready`, `completed`, `cancelled` |
-| Replacement request | `preparing` (initial) | `ready`, `done`, `cancelled` |
+## 1. Invoice / Order Document Export (your explicit ask)
+- Per-order **"Download Invoice"** button in `admin.orders.tsx` and in the team's `shop.orders.tsx` history.
+- Formats: **PDF** (default, using `jspdf` + `jspdf-autotable`, full RTL Hebrew support) and **DOCX** (using `docx` lib) — user picks from a small dropdown on the button.
+- Contents: team name, contact + phone, ordered-by name, order #, date, status, line items table (name / qty / price / line total), subtotal, notes, and a footer with company/branding from `app_settings`.
+- Bulk export: select multiple orders → "Download all as ZIP" (PDFs merged or zipped).
+- Monthly statement per team: one PDF summarizing all orders in a chosen month with totals vs. monthly limit.
 
-(Admin can still override anything from `/admin/orders` and `/admin/replacements`.)
+## 2. Better Order Visibility for Admins
+- **Dashboard widgets on `admin.index`**: today's orders count, awaiting-approval count, low-stock items, teams over 80% of monthly budget, replacement requests pending.
+- **Inline order detail drawer** instead of only the edit dialog — shows full item list, team budget usage, prior orders from same team, and a status timeline.
+- **Status timeline / audit log** on each order (who changed status and when). Requires a small `order_status_history` table.
+- **Color-coded row highlights** for urgent states (awaiting_approval > 24h, ready > 48h not picked up).
+- **Sticky filter bar + saved filter presets** ("Today", "This week", "Awaiting approval", per team).
+- **Search box** by order #, team name, contact phone, or item name.
+- **Column sort + pagination** (current list can get long); virtualized scrolling for big result sets.
 
-## Backend
+## 3. Order Workflow Quality-of-Life
+- **Quick-action buttons** per row (Approve / Mark Ready / Complete) instead of opening the status dropdown each time.
+- **Bulk actions**: select N orders → bulk approve / mark ready / export.
+- **Print-friendly "Picking slip"** view for warehouse staff — large fonts, checkboxes per item, grouped by storage location.
+- **Reject / Cancel with reason** — captured note shown to the team.
+- **Internal admin notes** field on each order (not visible to team).
+- **Auto-notify team** (push + optional email) on every status change, with a templated message.
 
-### `src/lib/team.functions.ts`
-- **`cancelOrder({ pin, order_id })`**
-  - Validates team owns the order and status ∈ {pending, awaiting_approval}.
-  - If status was `pending`, restore stock for each item (was deducted on placement).
-  - Sets status to `cancelled`.
-- **`editOrder({ pin, order_id, items[], notes?, contact_phone?, ordered_by_name? })`**
-  - Same status check.
-  - Items can have qty changed or be removed; at least 1 item must remain.
-  - Restore stock for old items (if status was `pending`), validate + recompute total from current product prices, write new `order_items`, deduct stock again (if not awaiting approval).
-  - Recompute `awaiting_approval` vs `pending` against monthly limit (same rule as `placeOrder`).
+## 4. Reporting & Insights
+- **CSV/Excel export already exists**; add **PDF summary report** for a date range with charts (orders per team, top products, spend vs. budget).
+- **Top products** and **slow movers** views to inform stocking decisions.
+- **Team scorecard**: avg order size, cancellation rate, replacement request rate.
 
-### `src/lib/replacements.functions.ts`
-- **`deleteReplacementRequest({ pin, request_id })`**
-  - Status must be `preparing`. Restores `takin_stock` for every item, then deletes items + request.
-- **`editReplacementRequest({ pin, request_id, items[], notes?, contact_phone?, ordered_by_name? })`**
-  - Status must be `preparing`. Items can have qty changed or be removed; at least 1 must remain.
-  - Restore takin_stock for old items, validate new quantities against available takin_stock, write new items, deduct new takin_stock.
+## 5. Replacements Panel Parity
+- Same invoice-style export for replacement requests.
+- Group replacement requests by product for the inventory team ("you need to prep X of item Y across 4 teams").
 
-All four fns mirror the existing pin-based auth in `placeOrder` / `submitReplacementRequest`.
+## 6. Small but high-value polish
+- Keyboard shortcuts (e.g. `a` approve, `r` ready, `/` focus search).
+- Persist last-used filters in `localStorage`.
+- Toast with "Undo" after status changes / deletions.
+- Empty-state illustrations and clearer loading skeletons.
 
-## Frontend
+---
 
-### `src/routes/shop.orders.tsx`
-For each order with editable status, render two buttons next to the status badge:
-- **בטל** — confirm dialog → `cancelOrder`.
-- **ערוך** — dialog with each item as a row: name, qty stepper (min 0; 0 removes the item), live total preview. Optional notes/phone/name fields prefilled. Save → `editOrder`.
-After success: toast + invalidate `["team-orders"]`.
+## Recommended first slice (if you want me to just pick)
+1. **PDF + DOCX invoice download** on each order (admin + team views), branded from `app_settings`.
+2. **Admin dashboard widgets** (today / awaiting / low stock / over-budget teams).
+3. **Order detail drawer** with status timeline + internal admin notes.
+4. **Quick-action buttons + search box + saved filter presets** on the orders list.
 
-### `src/routes/shop.replacements.tsx`
-For each request with status `preparing`, render:
-- **מחק** — confirm dialog → `deleteReplacementRequest`.
-- **ערוך** — dialog with per-item qty stepper (0 = remove). Save → `editReplacementRequest`.
-After success: toast + invalidate `["team-replacement-requests"]`.
+### Technical notes for the first slice
+- Add deps: `jspdf`, `jspdf-autotable`, `docx`, `file-saver` (all client-side, no server work needed for generation).
+- Hebrew/RTL: embed a Hebrew TTF (e.g. Heebo) as base64 into the PDF generator so glyphs render correctly.
+- New tables (only if you approve timeline + admin notes):
+  - `order_status_history(order_id, from_status, to_status, changed_by, changed_at, note)`
+  - add `admin_notes text` column to `orders`.
+- New server fns in `admin.functions.ts`: `getOrderDetail(id)` returning order + history + team budget context.
 
-Both dialogs use existing shadcn `Dialog`, `Button`, `Input` patterns. RTL preserved. No new colors.
-
-## Out of scope
-- Adding brand-new products into an existing order/request via the edit dialog (only qty changes + item removal). Can be added later if requested.
-- No schema changes.
+**Which of these should I plan in detail and build?**
