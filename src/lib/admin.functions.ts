@@ -184,7 +184,7 @@ export const updateAdminUserRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({
     user_id: z.string().uuid(),
-    role: z.enum(["admin", "staff"]),
+    role: z.enum(["admin", "staff", "customer"]),
   }).parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
@@ -192,13 +192,53 @@ export const updateAdminUserRole = createServerFn({ method: "POST" })
       throw new Error("לא ניתן לשנות את התפקיד של עצמך");
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Remove other admin/staff roles, then set the chosen one
+    // Remove other admin/staff roles
     await supabaseAdmin.from("user_roles").delete()
       .eq("user_id", data.user_id).in("role", ["admin", "staff"]);
+    if (data.role === "customer") return { ok: true };
     const { error } = await supabaseAdmin.from("user_roles")
       .insert({ user_id: data.user_id, role: data.role });
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const searchRegisteredUsers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ query: z.string().max(200).optional().default("") }).parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: list } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles").select("user_id, role").in("role", ["admin", "staff"]);
+    const roleByUser = new Map<string, "admin" | "staff">();
+    for (const r of (roles ?? []) as any[]) {
+      const cur = roleByUser.get(r.user_id);
+      if (r.role === "admin" || !cur) roleByUser.set(r.user_id, r.role);
+    }
+    const ids = list.users.map(u => u.id);
+    const { data: profs } = await supabaseAdmin
+      .from("profiles").select("id, display_name").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.display_name as string | null]));
+    const q = data.query.trim().toLowerCase();
+    const rows = list.users.map(u => {
+      const md = (u.user_metadata as any) || {};
+      const displayName = nameById.get(u.id) || md.full_name || md.name || (u.email?.split("@")[0] ?? "");
+      const provider = u.app_metadata?.provider || "email";
+      return {
+        id: u.id,
+        email: u.email ?? "",
+        displayName: displayName as string,
+        provider: provider as string,
+        currentRole: (roleByUser.get(u.id) ?? "customer") as "admin" | "staff" | "customer",
+        created_at: u.created_at,
+      };
+    });
+    const filtered = q
+      ? rows.filter(r => r.email.toLowerCase().includes(q) || r.displayName.toLowerCase().includes(q))
+      : rows;
+    filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return filtered.slice(0, 50);
   });
 
 export const deleteAdminUser = createServerFn({ method: "POST" })

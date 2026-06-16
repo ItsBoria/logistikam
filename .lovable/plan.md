@@ -1,42 +1,36 @@
-# Plan
+## Goal
+Make it possible to find any registered user (including new Google sign-ups) from `/admin/users` and assign them an `admin` / `staff` / customer role — without needing DB access.
 
-## 1. Enable Google signups
-Flip auth backend settings so new Google users can be created:
-- `disable_signup: false`
-- `auto_confirm_email: false` (unchanged)
-- `external_anonymous_users_enabled: false` (unchanged)
-- `password_hibp_enabled: true` (unchanged)
+## Changes
 
-No code changes — this unblocks the "failed to sign in with vendor" error.
+### 1. Backend — `src/lib/admin.functions.ts`
+Add `searchRegisteredUsers` server function:
+- `requireSupabaseAuth` + `has_role(admin)` check.
+- Loads `supabaseAdmin` inside the handler, calls `auth.admin.listUsers()`.
+- Optional `query` string filters by email / display name (case-insensitive).
+- Joins each user with `profiles` (display name) and `user_roles` (current role).
+- Returns `{ id, email, displayName, provider, currentRole }[]` (capped, e.g. 50 results).
 
-## 2. Redesign admin shell — minimal, bottom-only nav
+`updateAdminUserRole` already handles the "no existing role → insert" case, so it stays as-is and gets reused for newly-found users.
 
-### `src/components/admin-shell.tsx`
-- Remove the top desktop nav row and the mobile horizontal scroll-strip of tabs.
-- Keep a slim top bar with only:
-  - Small brand mark (left)
-  - "View shop as team…" picker (admin only, right)
-  - Sign-out icon button (right)
-- No labels, no extra chrome. Generous padding, subtle border.
-- Main content area gets bottom padding so the floating tab bar never overlaps.
+### 2. Frontend — `src/routes/admin.users.tsx`
+Add a tab layout with two views:
 
-### `src/components/admin-bottom-tab-bar.tsx`
-- Always-visible floating pill bar, centered, max-w ~640px, 16px from bottom, backdrop blur.
-- Admin tabs reduced to essentials: **Overview, Orders, Products, Stock, Teams, More**.
-  - "More" opens a bottom sheet containing the remaining items (Replacements, Reports, Settings, etc.).
-- Staff keeps its existing 4 items.
-- Active tab: solid `bg-primary` pill with icon + label.
-- Inactive: icon-only; label appears on hover (desktop) and is always shown on mobile under the icon at smaller size.
-- Pending-orders count badge on the Orders tab (reuse existing query).
+**Tab 1 — משתמשי מערכת** (current behaviour, unchanged)
+The existing list of users who already have `admin` or `staff` role.
 
-### Dashboard cleanup
-- Remove the small floating quick-actions widget that duplicates nav — the bottom bar is the single nav surface.
+**Tab 2 — כל המשתמשים** (new)
+- Search input (email or name), debounced.
+- Results list: avatar/initials, display name, email, provider badge (Google / אימייל), current role badge (מנהל / צוות / לקוח).
+- Role dropdown on each row → calls `updateAdminUserRole` → refetches both tabs.
+- Empty state + loading state.
+
+RTL + existing design tokens, no new colors.
 
 ## Out of scope
-- No changes to inner admin page content/layout.
-- No color/theme overhaul; uses existing tokens.
+- No schema changes.
+- No changes to membership / teams logic.
+- No bulk actions.
 
-## Technical notes
-- Pending-orders badge: reuse the existing orders query already used in admin overview; pass count into the bottom bar via prop or a small shared hook.
-- Bottom sheet: shadcn `Sheet` with `side="bottom"`.
-- Keep route-active detection via `useRouterState`.
+## How you'll use it
+Sign in as `yuvalyu717@gmail.com` → **מנהלים** → **כל המשתמשים** → search `davidpanasik.dp@gmail.com` → set role to **מנהל**.
