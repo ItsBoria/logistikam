@@ -1,4 +1,4 @@
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -23,7 +23,7 @@ export function AdminShell({
   const navigate = useNavigate();
   const { session, loading } = useSupabaseSession();
   const { data: roles, loading: rolesLoading } = useAdminRoles();
-  const path = useRouterState({ select: (s) => s.location.pathname });
+  
 
   // Don't auto-clear team session here: admin uses it for "view shop as".
   useEffect(() => {
