@@ -1,16 +1,20 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw } from "lucide-react";
-import { getTeamOrders, repeatOrder } from "@/lib/team.functions";
+import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw, Pencil, X, Plus, Minus, Trash2 } from "lucide-react";
+import { getTeamOrders, repeatOrder, cancelOrder, editOrder } from "@/lib/team.functions";
 import { getTeamSession } from "@/lib/team-session";
 import { formatCurrency, VAT_LABEL } from "@/lib/pricing";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
+
+const EDITABLE_ORDER_STATUSES = new Set(["pending", "awaiting_approval"]);
+
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "ממתינה",
@@ -72,9 +76,12 @@ function OrdersError({ error, reset }: { error: Error; reset: () => void }) {
 
 function OrdersPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const session = typeof window !== "undefined" ? getTeamSession() : null;
   const fetchOrders = useServerFn(getTeamOrders);
   const reorderFn = useServerFn(repeatOrder);
+  const cancelFn = useServerFn(cancelOrder);
+  const editFn = useServerFn(editOrder);
 
   useEffect(() => {
     if (!session?.pin) {
@@ -88,6 +95,53 @@ function OrdersPage() {
     queryFn: () => fetchOrders({ data: { pin: session!.pin } }),
     staleTime: 30_000,
   });
+
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editQty, setEditQty] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(order: any) {
+    const initial: Record<string, number> = {};
+    for (const it of order.order_items as any[]) {
+      if (it.product_id) initial[it.product_id] = Number(it.quantity);
+    }
+    setEditQty(initial);
+    setEditing(order);
+  }
+
+  function bumpEdit(productId: string, delta: number) {
+    setEditQty((m) => {
+      const next = { ...m, [productId]: Math.max(0, (m[productId] ?? 0) + delta) };
+      if (next[productId] === 0) delete next[productId];
+      return next;
+    });
+  }
+
+  async function saveEdit() {
+    if (!editing || !session?.pin) return;
+    const items = Object.entries(editQty).map(([product_id, quantity]) => ({ product_id, quantity }));
+    if (items.length === 0) { toast.error("חייב להישאר לפחות פריט אחד"); return; }
+    setSaving(true);
+    try {
+      await editFn({ data: { pin: session.pin, order_id: editing.id, items } });
+      toast.success("ההזמנה עודכנה");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["team-orders", session.pin] });
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally { setSaving(false); }
+  }
+
+  async function handleCancel(orderId: string) {
+    if (!session?.pin) return;
+    if (!confirm("לבטל את ההזמנה?")) return;
+    try {
+      await cancelFn({ data: { pin: session.pin, order_id: orderId } });
+      toast.success("ההזמנה בוטלה");
+      qc.invalidateQueries({ queryKey: ["team-orders", session.pin] });
+    } catch (e: any) { toast.error(e.message || "שגיאה"); }
+  }
+
 
   async function handleReorder(orderId: string) {
     if (!session?.pin) return;
@@ -199,11 +253,22 @@ function OrdersPage() {
                         ))}
                       </div>
                       {order.notes ? <div className="rounded-md bg-muted p-3 text-sm">הערות: {order.notes}</div> : null}
-                      <div className="flex justify-end">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {EDITABLE_ORDER_STATUSES.has(order.status) && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => startEdit(order)}>
+                              <Pencil className="ml-2 h-4 w-4" /> ערוך
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleCancel(order.id)} className="text-destructive">
+                              <X className="ml-2 h-4 w-4" /> בטל הזמנה
+                            </Button>
+                          </>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => handleReorder(order.id)}>
                           <RotateCcw className="ml-2 h-4 w-4" /> הזמן שוב
                         </Button>
                       </div>
+
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -213,6 +278,51 @@ function OrdersPage() {
         )}
       </main>
       <BottomTabBar pin={session?.pin} />
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>עריכת הזמנה</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {editing && (editing.order_items as any[]).map((it) => {
+              if (!it.product_id) return null;
+              const qty = editQty[it.product_id] ?? 0;
+              return (
+                <div key={it.id} className="flex items-center justify-between gap-2 border-b pb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{it.name}</div>
+                    <div className="text-xs text-muted-foreground">{formatCurrency(Number(it.price))}</div>
+                  </div>
+                  {qty === 0 ? (
+                    <Button variant="outline" size="sm" onClick={() => bumpEdit(it.product_id, 1)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => bumpEdit(it.product_id, -1)}>
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="font-bold tabular-nums w-6 text-center">{qty}</span>
+                      <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => bumpEdit(it.product_id, 1)}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditQty((m) => { const n = { ...m }; delete n[it.product_id]; return n; })}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">ניתן לשנות כמויות או להסיר פריטים. ההזמנה מוגבלת לפריטים הקיימים בה.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>ביטול</Button>
+            <Button onClick={saveEdit} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "שמור שינויים"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

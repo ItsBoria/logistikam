@@ -1,31 +1,53 @@
 ## Goal
-Each user's team is locked after first pick. Admins can assign/change the team from **כל המשתמשים**.
+Let teams **edit** or **cancel** their own orders and replacement requests after submission — as long as the warehouse hasn't started handling them.
 
-## Changes
+## When edit/cancel is allowed
 
-### 1. Backend — `src/lib/membership.functions.ts`
-- **Lock `setMyTeam` (self-service)**: if the user already has a row in `team_members`, throw "הצוות שלך כבר נקבע — פנה למנהל לשינוי". Insert only when there is no existing membership (no upsert-replace).
-- **Add `setUserTeamAdmin`** server fn (admin-only):
-  - Input: `{ user_id: uuid, team_id: uuid | null }`.
-  - Verifies caller has `admin` role.
-  - If `team_id` is null → delete the user's `team_members` row.
-  - Else validate team exists + active, then upsert `team_members` on `user_id`.
+| Type | Editable / cancellable while status is | Locked once status becomes |
+|---|---|---|
+| Order | `pending`, `awaiting_approval` | `approved`, `preparing`, `ready`, `completed`, `cancelled` |
+| Replacement request | `preparing` (initial) | `ready`, `done`, `cancelled` |
 
-### 2. Backend — `src/lib/admin.functions.ts`
-- **`searchRegisteredUsers`** also returns `team_id` and `team_name` per user (joined from `team_members` + `teams`).
-- **`listAdminUsers`** (system users tab): include the same team info so admins/staff also show their team.
+(Admin can still override anything from `/admin/orders` and `/admin/replacements`.)
 
-### 3. Frontend — `src/routes/admin.users.tsx`
-- **כל המשתמשים** rows: add a **team Select** next to the role Select.
-  - Options: all active teams (incl. admin-only) + a "ללא צוות" option.
-  - Shows current team as the selected value; changing it calls `setUserTeamAdmin`.
-- Loads team list once via `listActiveTeams` (admin sees all).
-- Same team Select shown in the **משתמשי מערכת** tab rows.
-- Invalidate `["registered-users"]` and `["admin-users"]` after a change.
+## Backend
+
+### `src/lib/team.functions.ts`
+- **`cancelOrder({ pin, order_id })`**
+  - Validates team owns the order and status ∈ {pending, awaiting_approval}.
+  - If status was `pending`, restore stock for each item (was deducted on placement).
+  - Sets status to `cancelled`.
+- **`editOrder({ pin, order_id, items[], notes?, contact_phone?, ordered_by_name? })`**
+  - Same status check.
+  - Items can have qty changed or be removed; at least 1 item must remain.
+  - Restore stock for old items (if status was `pending`), validate + recompute total from current product prices, write new `order_items`, deduct stock again (if not awaiting approval).
+  - Recompute `awaiting_approval` vs `pending` against monthly limit (same rule as `placeOrder`).
+
+### `src/lib/replacements.functions.ts`
+- **`deleteReplacementRequest({ pin, request_id })`**
+  - Status must be `preparing`. Restores `takin_stock` for every item, then deletes items + request.
+- **`editReplacementRequest({ pin, request_id, items[], notes?, contact_phone?, ordered_by_name? })`**
+  - Status must be `preparing`. Items can have qty changed or be removed; at least 1 must remain.
+  - Restore takin_stock for old items, validate new quantities against available takin_stock, write new items, deduct new takin_stock.
+
+All four fns mirror the existing pin-based auth in `placeOrder` / `submitReplacementRequest`.
+
+## Frontend
+
+### `src/routes/shop.orders.tsx`
+For each order with editable status, render two buttons next to the status badge:
+- **בטל** — confirm dialog → `cancelOrder`.
+- **ערוך** — dialog with each item as a row: name, qty stepper (min 0; 0 removes the item), live total preview. Optional notes/phone/name fields prefilled. Save → `editOrder`.
+After success: toast + invalidate `["team-orders"]`.
+
+### `src/routes/shop.replacements.tsx`
+For each request with status `preparing`, render:
+- **מחק** — confirm dialog → `deleteReplacementRequest`.
+- **ערוך** — dialog with per-item qty stepper (0 = remove). Save → `editReplacementRequest`.
+After success: toast + invalidate `["team-replacement-requests"]`.
+
+Both dialogs use existing shadcn `Dialog`, `Button`, `Input` patterns. RTL preserved. No new colors.
 
 ## Out of scope
-- No schema change. `team_members` already enforces one team per user via PK / unique on `user_id`.
-- No change to admin "view shop as" or PIN flow.
-
-## Result
-A new user picks a team once on first entry. From then on the choice is fixed for them; only an admin can move them to another team (or detach them) from the users page.
+- Adding brand-new products into an existing order/request via the edit dialog (only qty changes + item removal). Can be added later if requested.
+- No schema changes.

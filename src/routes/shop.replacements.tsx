@@ -2,7 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useMemo } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getReplacementShop, submitReplacementRequest, getTeamReplacementRequests } from "@/lib/replacements.functions";
+import {
+  getReplacementShop,
+  submitReplacementRequest,
+  getTeamReplacementRequests,
+  deleteReplacementRequest,
+  editReplacementRequest,
+} from "@/lib/replacements.functions";
 import { getTeamSession } from "@/lib/team-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, Loader2, Trash2, Replace } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Loader2, Trash2, Replace, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
 
@@ -41,6 +47,8 @@ function ReplacementsPage() {
   const fetchShop = useServerFn(getReplacementShop);
   const submitFn = useServerFn(submitReplacementRequest);
   const fetchHistory = useServerFn(getTeamReplacementRequests);
+  const deleteReqFn = useServerFn(deleteReplacementRequest);
+  const editReqFn = useServerFn(editReplacementRequest);
 
   const { data, isLoading, refetch } = useQuery({
     enabled: !!session,
@@ -95,7 +103,49 @@ function ReplacementsPage() {
     } finally { setPlacing(false); }
   }
 
-  
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editQty, setEditQty] = useState<Record<string, number>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function startEdit(req: any) {
+    const initial: Record<string, number> = {};
+    for (const it of (req.replacement_request_items ?? []) as any[]) {
+      if (it.replacement_product_id) initial[it.replacement_product_id] = Number(it.quantity);
+    }
+    setEditQty(initial);
+    setEditing(req);
+  }
+  function bumpEdit(id: string, delta: number) {
+    setEditQty((m) => {
+      const next = { ...m, [id]: Math.max(0, (m[id] ?? 0) + delta) };
+      if (next[id] === 0) delete next[id];
+      return next;
+    });
+  }
+  async function saveEdit() {
+    if (!editing || !session) return;
+    const items = Object.entries(editQty).map(([replacement_product_id, quantity]) => ({ replacement_product_id, quantity }));
+    if (items.length === 0) { toast.error("חייב להישאר לפחות פריט אחד"); return; }
+    setSavingEdit(true);
+    try {
+      await editReqFn({ data: { pin: session.pin, request_id: editing.id, items } });
+      toast.success("הבקשה עודכנה");
+      setEditing(null);
+      refetch(); refetchHistory();
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally { setSavingEdit(false); }
+  }
+  async function handleDelete(id: string) {
+    if (!session) return;
+    if (!confirm("למחוק את בקשת ההחלפה?")) return;
+    try {
+      await deleteReqFn({ data: { pin: session.pin, request_id: id } });
+      toast.success("הבקשה נמחקה");
+      refetch(); refetchHistory();
+    } catch (e: any) { toast.error(e.message || "שגיאה"); }
+  }
+
 
   if (!session) return null;
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
@@ -170,6 +220,16 @@ function ReplacementsPage() {
                     ))}
                   </ul>
                   {r.notes && <p className="text-xs text-muted-foreground mt-1">הערה: {r.notes}</p>}
+                  {r.status === "preparing" && (
+                    <div className="mt-2 flex flex-wrap gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => startEdit(r)}>
+                        <Pencil className="w-3.5 h-3.5 ml-1" /> ערוך
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDelete(r.id)}>
+                        <Trash2 className="w-3.5 h-3.5 ml-1" /> מחק
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -220,6 +280,49 @@ function ReplacementsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>עריכת בקשת החלפה</DialogTitle></DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {editing && ((editing.replacement_request_items ?? []) as any[]).map((it) => {
+              if (!it.replacement_product_id) return null;
+              const qty = editQty[it.replacement_product_id] ?? 0;
+              return (
+                <div key={it.id} className="flex items-center justify-between gap-2 border-b pb-2">
+                  <div className="flex-1 min-w-0 font-medium text-sm truncate">{it.name}</div>
+                  {qty === 0 ? (
+                    <Button variant="outline" size="sm" onClick={() => bumpEdit(it.replacement_product_id, 1)}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => bumpEdit(it.replacement_product_id, -1)}>
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="font-bold tabular-nums w-6 text-center">{qty}</span>
+                      <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => bumpEdit(it.replacement_product_id, 1)}>
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setEditQty((m) => { const n = { ...m }; delete n[it.replacement_product_id]; return n; })}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">ניתן לשנות כמויות או להסיר פריטים. עריכה אפשרית רק כל עוד הבקשה בהכנה.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>ביטול</Button>
+            <Button onClick={saveEdit} disabled={savingEdit}>
+              {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : "שמור שינויים"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

@@ -267,3 +267,120 @@ export const getTeamOrders = createServerFn({ method: "POST" })
       })),
     };
   });
+
+// ---- Team-side edit / cancel for orders still in pending/awaiting_approval ----
+
+const editableOrderStatuses = ["pending", "awaiting_approval"] as const;
+type EditableOrderStatus = typeof editableOrderStatuses[number];
+
+async function loadOwnEditableOrder(supabaseAdmin: any, pin: string, order_id: string) {
+  const { data: team } = await supabaseAdmin
+    .from("teams").select("id, monthly_limit, active").eq("pin", pin.trim()).maybeSingle();
+  if (!team || !team.active) throw new Error("צוות לא תקין");
+  const { data: order } = await supabaseAdmin
+    .from("orders")
+    .select("id, team_id, status, total, order_items(id, product_id, name, price, quantity)")
+    .eq("id", order_id).maybeSingle();
+  if (!order || order.team_id !== team.id) throw new Error("הזמנה לא נמצאה");
+  if (!editableOrderStatuses.includes(order.status as EditableOrderStatus)) {
+    throw new Error("לא ניתן לערוך הזמנה זו");
+  }
+  return { team, order } as const;
+}
+
+async function restoreStockForItems(supabaseAdmin: any, items: any[]) {
+  for (const it of items) {
+    if (!it.product_id) continue;
+    const { data: p } = await supabaseAdmin
+      .from("products").select("stock").eq("id", it.product_id).maybeSingle();
+    if (!p) continue;
+    await supabaseAdmin
+      .from("products").update({ stock: Number(p.stock) + Number(it.quantity) })
+      .eq("id", it.product_id);
+  }
+}
+
+export const cancelOrder = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({ pin: z.string().min(1), order_id: z.string().uuid() }).parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { order } = await loadOwnEditableOrder(supabaseAdmin, data.pin, data.order_id);
+    if (order.status === "pending") {
+      await restoreStockForItems(supabaseAdmin, order.order_items as any[]);
+    }
+    const { error } = await supabaseAdmin
+      .from("orders").update({ status: "cancelled" }).eq("id", order.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const editOrder = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({
+      pin: z.string().min(1),
+      order_id: z.string().uuid(),
+      items: z.array(itemSchema).min(1).max(200),
+      notes: z.string().max(500).optional(),
+      contact_phone: z.string().min(7).max(20).optional(),
+      ordered_by_name: z.string().min(1).max(100).optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { team, order } = await loadOwnEditableOrder(supabaseAdmin, data.pin, data.order_id);
+
+    // Restore prior stock if we'd deducted it
+    if (order.status === "pending") {
+      await restoreStockForItems(supabaseAdmin, order.order_items as any[]);
+    }
+
+    const ids = data.items.map((i) => i.product_id);
+    const { data: products } = await supabaseAdmin
+      .from("products").select("id, name, price, stock, active").in("id", ids);
+    if (!products || products.length !== ids.length) throw new Error("חלק מהמוצרים לא נמצאו");
+
+    let total = 0;
+    const newItems = data.items.map((i) => {
+      const p = products.find((x: any) => x.id === i.product_id)!;
+      if (!p.active) throw new Error(`המוצר ${p.name} אינו זמין`);
+      if (Number(p.stock) < i.quantity) throw new Error(`אין מספיק מלאי עבור ${p.name}`);
+      const priceWithVat = addVat(Number(p.price));
+      total += priceWithVat * i.quantity;
+      return { order_id: order.id, product_id: p.id, name: p.name, price: priceWithVat, quantity: i.quantity };
+    });
+
+    // Recompute status against monthly limit, excluding this order's current total
+    const { data: spentResp } = await supabaseAdmin.rpc("team_month_spent", { _team_id: team.id });
+    const spentOthers = Math.max(0, Number(spentResp ?? 0) - Number(order.total));
+    const limit = Number(team.monthly_limit);
+    const requiresApproval = limit > 0 && spentOthers + total > limit;
+    const newStatus = requiresApproval ? "awaiting_approval" : "pending";
+
+    // Replace items
+    await supabaseAdmin.from("order_items").delete().eq("order_id", order.id);
+    const { error: insErr } = await supabaseAdmin.from("order_items").insert(newItems);
+    if (insErr) throw new Error(insErr.message);
+
+    // Update order
+    const updateFields: any = { total, status: newStatus };
+    if (data.notes !== undefined) updateFields.notes = data.notes;
+    if (data.contact_phone !== undefined) updateFields.contact_phone = data.contact_phone;
+    if (data.ordered_by_name !== undefined) updateFields.ordered_by_name = data.ordered_by_name;
+    const { error: updErr } = await supabaseAdmin
+      .from("orders").update(updateFields).eq("id", order.id);
+    if (updErr) throw new Error(updErr.message);
+
+    // Deduct stock for new items if status is pending
+    if (newStatus === "pending") {
+      for (const it of newItems) {
+        const p = products.find((x: any) => x.id === it.product_id)!;
+        await supabaseAdmin
+          .from("products").update({ stock: Number(p.stock) - it.quantity })
+          .eq("id", it.product_id);
+      }
+    }
+
+    return { ok: true, status: newStatus, total };
+  });
