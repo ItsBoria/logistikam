@@ -103,7 +103,49 @@ function ReplacementsPage() {
     } finally { setPlacing(false); }
   }
 
-  
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editQty, setEditQty] = useState<Record<string, number>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function startEdit(req: any) {
+    const initial: Record<string, number> = {};
+    for (const it of (req.replacement_request_items ?? []) as any[]) {
+      if (it.replacement_product_id) initial[it.replacement_product_id] = Number(it.quantity);
+    }
+    setEditQty(initial);
+    setEditing(req);
+  }
+  function bumpEdit(id: string, delta: number) {
+    setEditQty((m) => {
+      const next = { ...m, [id]: Math.max(0, (m[id] ?? 0) + delta) };
+      if (next[id] === 0) delete next[id];
+      return next;
+    });
+  }
+  async function saveEdit() {
+    if (!editing || !session) return;
+    const items = Object.entries(editQty).map(([replacement_product_id, quantity]) => ({ replacement_product_id, quantity }));
+    if (items.length === 0) { toast.error("חייב להישאר לפחות פריט אחד"); return; }
+    setSavingEdit(true);
+    try {
+      await editReqFn({ data: { pin: session.pin, request_id: editing.id, items } });
+      toast.success("הבקשה עודכנה");
+      setEditing(null);
+      refetch(); refetchHistory();
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally { setSavingEdit(false); }
+  }
+  async function handleDelete(id: string) {
+    if (!session) return;
+    if (!confirm("למחוק את בקשת ההחלפה?")) return;
+    try {
+      await deleteReqFn({ data: { pin: session.pin, request_id: id } });
+      toast.success("הבקשה נמחקה");
+      refetch(); refetchHistory();
+    } catch (e: any) { toast.error(e.message || "שגיאה"); }
+  }
+
 
   if (!session) return null;
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
