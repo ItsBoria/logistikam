@@ -134,7 +134,7 @@ export const getTeamReplacementRequests = createServerFn({ method: "POST" })
     if (!team) throw new Error("צוות לא תקין");
     const { data: requests, error } = await supabaseAdmin
       .from("replacement_requests")
-      .select("id, created_at, status, notes, ordered_by_name, contact_phone, replacement_request_items(id, name, quantity)")
+      .select("id, created_at, status, notes, ordered_by_name, contact_phone, replacement_request_items(id, replacement_product_id, name, quantity)")
       .eq("team_id", team.id)
       .order("created_at", { ascending: false })
       .limit(100);
