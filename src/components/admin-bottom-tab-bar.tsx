@@ -15,13 +15,13 @@ const ADMIN_MAIN: Item[] = [
   { to: "/admin", label: "סקירה", icon: LayoutDashboard, exact: true },
   { to: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   { to: "/admin/products", label: "מוצרים", icon: Package },
-  { to: "/admin/replacement-inventory", label: "מלאי", icon: Boxes },
+  { to: "/admin/users", label: "מנהלים", icon: UserCog },
   { to: "/admin/teams", label: "צוותים", icon: Users },
 ];
 
 const ADMIN_MORE: Item[] = [
+  { to: "/admin/replacement-inventory", label: "מלאי החלפות", icon: Boxes },
   { to: "/admin/replacements", label: "בקשות החלפה", icon: Replace },
-  { to: "/admin/users", label: "מנהלים", icon: UserCog },
   { to: "/admin/notifications", label: "התראות", icon: Bell },
 ];
 

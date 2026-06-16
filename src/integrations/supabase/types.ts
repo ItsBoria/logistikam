@@ -438,6 +438,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string
           id: string
+          is_admin_only: boolean
           monthly_limit: number
           name: string
           pin: string
@@ -447,6 +448,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           id?: string
+          is_admin_only?: boolean
           monthly_limit?: number
           name: string
           pin: string
@@ -456,6 +458,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string
           id?: string
+          is_admin_only?: boolean
           monthly_limit?: number
           name?: string
           pin?: string
