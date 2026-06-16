@@ -107,14 +107,45 @@ function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi icon={<Clock className="w-5 h-5" />} label="ממתינות" value={kpis.pending + kpis.awaiting} tone="warning" />
+        <Kpi icon={<Timer className="w-5 h-5" />} label="הזמנות תקועות" value={kpis.stuck ?? 0} tone={(kpis.stuck ?? 0) > 0 ? "warning" : undefined} />
         <Kpi icon={<Replace className="w-5 h-5" />} label="בקשות החלפה" value={kpis.pendingReplacements} tone={kpis.pendingReplacements > 0 ? "warning" : undefined} />
         <Kpi icon={<Package className="w-5 h-5" />} label="מלאי נמוך" value={kpis.lowStock} tone={kpis.lowStock > 0 ? "warning" : undefined} />
+        <Kpi icon={<TrendingDown className="w-5 h-5" />} label="צוותים מעל תקציב" value={kpis.overBudget ?? 0} tone={(kpis.overBudget ?? 0) > 0 ? "warning" : undefined} />
         <Kpi icon={<ShoppingBag className="w-5 h-5" />} label="הזמנות החודש" value={kpis.monthOrders} />
         {isAdmin && (
           <Kpi icon={<DollarSign className="w-5 h-5" />} label="הכנסות החודש" value={formatCurrency(kpis.monthRevenue)} />
         )}
         <Kpi icon={<Users className="w-5 h-5" />} label="צוותים פעילים" value={kpis.activeTeams} />
       </div>
+
+      {/* Stuck orders */}
+      {stuckOrders && stuckOrders.length > 0 && (
+        <Card className="p-4 border-warning/40">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold flex items-center gap-2 text-warning-foreground"><Timer className="w-4 h-4" /> הזמנות שדורשות תשומת לב</h2>
+            <Link to="/admin/orders" className="text-xs text-muted-foreground hover:text-foreground">לכל ההזמנות ←</Link>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">ממתינות לאישור מעל 24 שעות, או מוכנות לאיסוף מעל 48 שעות.</p>
+          <div className="space-y-2">
+            {stuckOrders.map((o: any) => {
+              const ageH = Math.round((Date.now() - new Date(o.created_at).getTime()) / 3600000);
+              return (
+                <div key={o.id} className="flex items-center justify-between gap-3 border-b last:border-b-0 pb-2 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded ${STATUS_COLOR[o.status] ?? STATUS_COLOR.pending}`}>{STATUS_LABEL[o.status] ?? o.status}</span>
+                      <span className="font-medium text-sm truncate">{o.teams?.name}</span>
+                      <span className="text-xs text-warning-foreground">לפני {ageH} שעות</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{o.ordered_by_name}</div>
+                  </div>
+                  <div className="font-bold tabular-nums text-sm">{formatCurrency(Number(o.total))}</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
 
       {/* Global low-stock threshold (admin only) */}
