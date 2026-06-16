@@ -76,9 +76,12 @@ function OrdersError({ error, reset }: { error: Error; reset: () => void }) {
 
 function OrdersPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const session = typeof window !== "undefined" ? getTeamSession() : null;
   const fetchOrders = useServerFn(getTeamOrders);
   const reorderFn = useServerFn(repeatOrder);
+  const cancelFn = useServerFn(cancelOrder);
+  const editFn = useServerFn(editOrder);
 
   useEffect(() => {
     if (!session?.pin) {
@@ -92,6 +95,53 @@ function OrdersPage() {
     queryFn: () => fetchOrders({ data: { pin: session!.pin } }),
     staleTime: 30_000,
   });
+
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editQty, setEditQty] = useState<Record<string, number>>({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(order: any) {
+    const initial: Record<string, number> = {};
+    for (const it of order.order_items as any[]) {
+      if (it.product_id) initial[it.product_id] = Number(it.quantity);
+    }
+    setEditQty(initial);
+    setEditing(order);
+  }
+
+  function bumpEdit(productId: string, delta: number) {
+    setEditQty((m) => {
+      const next = { ...m, [productId]: Math.max(0, (m[productId] ?? 0) + delta) };
+      if (next[productId] === 0) delete next[productId];
+      return next;
+    });
+  }
+
+  async function saveEdit() {
+    if (!editing || !session?.pin) return;
+    const items = Object.entries(editQty).map(([product_id, quantity]) => ({ product_id, quantity }));
+    if (items.length === 0) { toast.error("חייב להישאר לפחות פריט אחד"); return; }
+    setSaving(true);
+    try {
+      await editFn({ data: { pin: session.pin, order_id: editing.id, items } });
+      toast.success("ההזמנה עודכנה");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["team-orders", session.pin] });
+    } catch (e: any) {
+      toast.error(e.message || "שגיאה");
+    } finally { setSaving(false); }
+  }
+
+  async function handleCancel(orderId: string) {
+    if (!session?.pin) return;
+    if (!confirm("לבטל את ההזמנה?")) return;
+    try {
+      await cancelFn({ data: { pin: session.pin, order_id: orderId } });
+      toast.success("ההזמנה בוטלה");
+      qc.invalidateQueries({ queryKey: ["team-orders", session.pin] });
+    } catch (e: any) { toast.error(e.message || "שגיאה"); }
+  }
+
 
   async function handleReorder(orderId: string) {
     if (!session?.pin) return;
