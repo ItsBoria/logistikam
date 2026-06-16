@@ -220,6 +220,16 @@ function ReplacementsPage() {
                     ))}
                   </ul>
                   {r.notes && <p className="text-xs text-muted-foreground mt-1">הערה: {r.notes}</p>}
+                  {r.status === "preparing" && (
+                    <div className="mt-2 flex flex-wrap gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => startEdit(r)}>
+                        <Pencil className="w-3.5 h-3.5 ml-1" /> ערוך
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-destructive" onClick={() => handleDelete(r.id)}>
+                        <Trash2 className="w-3.5 h-3.5 ml-1" /> מחק
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
