@@ -35,8 +35,11 @@ function Admins() {
   const deleteFn = useServerFn(deleteAdminUser);
   const roleFn = useServerFn(updateAdminUserRole);
   const searchFn = useServerFn(searchRegisteredUsers);
+  const teamsFn = useServerFn(listActiveTeams);
+  const setTeamFn = useServerFn(setUserTeamAdmin);
 
   const { data: admins } = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn() });
+  const { data: teams } = useQuery({ queryKey: ["active-teams-admin"], queryFn: () => teamsFn() });
   const [query, setQuery] = useState("");
   const { data: searchResults, isFetching: searching } = useQuery({
     queryKey: ["registered-users", query],
@@ -76,6 +79,15 @@ function Admins() {
       qc.invalidateQueries({ queryKey: ["registered-users"] });
     } catch (e: any) { toast.error(e.message); }
   }
+  async function changeTeam(userId: string, value: string) {
+    try {
+      await setTeamFn({ data: { user_id: userId, team_id: value === "none" ? null : value } });
+      toast.success("הצוות עודכן");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["registered-users"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
+
 
   return (
     <div className="space-y-4">
