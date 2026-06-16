@@ -1,16 +1,20 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw } from "lucide-react";
-import { getTeamOrders, repeatOrder } from "@/lib/team.functions";
+import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw, Pencil, X, Plus, Minus, Trash2 } from "lucide-react";
+import { getTeamOrders, repeatOrder, cancelOrder, editOrder } from "@/lib/team.functions";
 import { getTeamSession } from "@/lib/team-session";
 import { formatCurrency, VAT_LABEL } from "@/lib/pricing";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
+
+const EDITABLE_ORDER_STATUSES = new Set(["pending", "awaiting_approval"]);
+
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "ממתינה",
