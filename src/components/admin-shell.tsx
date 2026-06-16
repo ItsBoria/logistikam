@@ -153,3 +153,36 @@ export function AdminShell({
     </div>
   );
 }
+
+function ViewShopAsPicker() {
+  const navigate = useNavigate();
+  const listFn = useServerFn(listActiveTeams);
+  const ctxFn = useServerFn(getTeamContextById);
+  const { data: teams } = useQuery({ queryKey: ["active-teams"], queryFn: () => listFn() });
+
+  async function onPick(teamId: string) {
+    try {
+      const ctx = await ctxFn({ data: { team_id: teamId } });
+      if (!ctx) return;
+      setTeamSession(ctx);
+      setAdminActing(true);
+      navigate({ to: "/shop" });
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  return (
+    <Select onValueChange={onPick}>
+      <SelectTrigger className="h-8 w-[180px] text-xs">
+        <Eye className="w-3.5 h-3.5 ml-1" />
+        <SelectValue placeholder="צפייה כצוות..." />
+      </SelectTrigger>
+      <SelectContent>
+        {(teams ?? []).map((t: any) => (
+          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
