@@ -142,7 +142,7 @@ function Admins() {
             <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setDebounced(e.target.value); }}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="חיפוש לפי אימייל או שם..."
               className="pr-9"
             />
