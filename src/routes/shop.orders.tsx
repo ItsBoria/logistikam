@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw, Pencil, X, Plus, Minus, Trash2 } from "lucide-react";
+import { ArrowRight, ClipboardList, Loader2, Phone, User, RotateCcw, Pencil, X, Plus, Minus, Trash2, Download, FileText, FileType, ChevronDown } from "lucide-react";
 import { getTeamOrders, repeatOrder, cancelOrder, editOrder } from "@/lib/team.functions";
 import { getTeamSession } from "@/lib/team-session";
 import { formatCurrency, VAT_LABEL } from "@/lib/pricing";
@@ -10,8 +10,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { BottomTabBar } from "@/components/bottom-tab-bar";
+import { downloadOrderInvoicePDF, downloadOrderInvoiceDOCX } from "@/lib/invoice";
 
 const EDITABLE_ORDER_STATUSES = new Set(["pending", "awaiting_approval"]);
 
