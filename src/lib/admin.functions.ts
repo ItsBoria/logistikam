@@ -217,20 +217,32 @@ export const searchRegisteredUsers = createServerFn({ method: "POST" })
       if (r.role === "admin" || !cur) roleByUser.set(r.user_id, r.role);
     }
     const ids = list.users.map(u => u.id);
+    const safeIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
     const { data: profs } = await supabaseAdmin
-      .from("profiles").select("id, display_name").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+      .from("profiles").select("id, display_name").in("id", safeIds);
     const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.display_name as string | null]));
+    const { data: members } = await supabaseAdmin
+      .from("team_members").select("user_id, team_id").in("user_id", safeIds);
+    const teamIdByUser = new Map<string, string>((members ?? []).map((m: any) => [m.user_id, m.team_id]));
+    const teamIds = Array.from(new Set(Array.from(teamIdByUser.values())));
+    const { data: teams } = teamIds.length
+      ? await supabaseAdmin.from("teams").select("id, name").in("id", teamIds)
+      : { data: [] as any[] };
+    const teamNameById = new Map((teams ?? []).map((t: any) => [t.id, t.name as string]));
     const q = data.query.trim().toLowerCase();
     const rows = list.users.map(u => {
       const md = (u.user_metadata as any) || {};
       const displayName = nameById.get(u.id) || md.full_name || md.name || (u.email?.split("@")[0] ?? "");
       const provider = u.app_metadata?.provider || "email";
+      const teamId = teamIdByUser.get(u.id) ?? null;
       return {
         id: u.id,
         email: u.email ?? "",
         displayName: displayName as string,
         provider: provider as string,
         currentRole: (roleByUser.get(u.id) ?? "customer") as "admin" | "staff" | "customer",
+        team_id: teamId,
+        team_name: teamId ? (teamNameById.get(teamId) ?? null) : null,
         created_at: u.created_at,
       };
     });
@@ -240,6 +252,7 @@ export const searchRegisteredUsers = createServerFn({ method: "POST" })
     filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return filtered.slice(0, 50);
   });
+
 
 export const deleteAdminUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
