@@ -250,7 +250,7 @@ export const getTeamOrders = createServerFn({ method: "POST" })
     if (!team) throw new Error("צוות לא תקין");
     const { data: orders, error } = await supabaseAdmin
       .from("orders")
-      .select("id, created_at, status, total, notes, ordered_by_name, contact_phone, order_items(id, name, price, quantity)")
+      .select("id, created_at, status, total, notes, ordered_by_name, contact_phone, order_items(id, product_id, name, price, quantity)")
       .eq("team_id", team.id)
       .order("created_at", { ascending: false })
       .limit(100);
