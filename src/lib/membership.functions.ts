@@ -61,6 +61,11 @@ export const setMyTeam = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: isAdmin } = await supabaseAdmin
       .rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    const { data: existing } = await supabaseAdmin
+      .from("team_members").select("team_id").eq("user_id", context.userId).maybeSingle();
+    if (existing && !isAdmin) {
+      throw new Error("הצוות שלך כבר נקבע — פנה למנהל לשינוי");
+    }
     const { data: t } = await supabaseAdmin
       .from("teams").select("id, active, is_admin_only").eq("id", data.team_id).maybeSingle();
     if (!t || !t.active) throw new Error("צוות לא תקין");
@@ -71,6 +76,33 @@ export const setMyTeam = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const setUserTeamAdmin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({
+    user_id: z.string().uuid(),
+    team_id: z.string().uuid().nullable(),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: isAdmin } = await supabaseAdmin
+      .rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) throw new Error("גישה לאדמין בלבד");
+    if (data.team_id === null) {
+      const { error } = await supabaseAdmin.from("team_members").delete().eq("user_id", data.user_id);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+    const { data: t } = await supabaseAdmin
+      .from("teams").select("id, active").eq("id", data.team_id).maybeSingle();
+    if (!t || !t.active) throw new Error("צוות לא תקין");
+    const { error } = await supabaseAdmin
+      .from("team_members")
+      .upsert({ user_id: data.user_id, team_id: data.team_id }, { onConflict: "user_id" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 
 // Admin "view shop as": resolves any team to the same context shape the shop uses.
 export const getTeamContextById = createServerFn({ method: "POST" })
