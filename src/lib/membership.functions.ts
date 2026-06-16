@@ -40,14 +40,18 @@ export const getMyTeamContext = createServerFn({ method: "GET" })
 
 export const listActiveTeams = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    const { data: isAdmin } = await supabaseAdmin
+      .rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    let q = supabaseAdmin
       .from("teams")
-      .select("id, name")
+      .select("id, name, is_admin_only")
       .eq("active", true)
       .order("name");
-    return data ?? [];
+    if (!isAdmin) q = q.eq("is_admin_only", false);
+    const { data } = await q;
+    return (data ?? []).map(({ id, name }) => ({ id, name }));
   });
 
 export const setMyTeam = createServerFn({ method: "POST" })
@@ -55,9 +59,12 @@ export const setMyTeam = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ team_id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: isAdmin } = await supabaseAdmin
+      .rpc("has_role", { _user_id: context.userId, _role: "admin" });
     const { data: t } = await supabaseAdmin
-      .from("teams").select("id, active").eq("id", data.team_id).maybeSingle();
+      .from("teams").select("id, active, is_admin_only").eq("id", data.team_id).maybeSingle();
     if (!t || !t.active) throw new Error("צוות לא תקין");
+    if (t.is_admin_only && !isAdmin) throw new Error("צוות לא תקין");
     const { error } = await supabaseAdmin
       .from("team_members")
       .upsert({ user_id: context.userId, team_id: data.team_id }, { onConflict: "user_id" });
