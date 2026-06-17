@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { downloadOrderInvoicePDF, downloadOrderInvoiceDOCX } from "@/lib/invoice";
+import { SearchInput } from "@/components/ui/search-input";
 
 export const Route = createFileRoute("/admin/orders")({
   ssr: false,
