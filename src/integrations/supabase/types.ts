@@ -80,6 +80,101 @@ export type Database = {
         }
         Relationships: []
       }
+      mission_weeks: {
+        Row: {
+          approver_signature_name: string | null
+          approver_signed_at: string | null
+          approver_user_id: string | null
+          author_signature_name: string | null
+          author_signed_at: string | null
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          id: string
+          locked: boolean
+          notes: string | null
+          updated_at: string
+          week: number
+          year: number
+        }
+        Insert: {
+          approver_signature_name?: string | null
+          approver_signed_at?: string | null
+          approver_user_id?: string | null
+          author_signature_name?: string | null
+          author_signed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          locked?: boolean
+          notes?: string | null
+          updated_at?: string
+          week: number
+          year: number
+        }
+        Update: {
+          approver_signature_name?: string | null
+          approver_signed_at?: string | null
+          approver_user_id?: string | null
+          author_signature_name?: string | null
+          author_signed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          id?: string
+          locked?: boolean
+          notes?: string | null
+          updated_at?: string
+          week?: number
+          year?: number
+        }
+        Relationships: []
+      }
+      missions: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          details: string | null
+          done: boolean
+          id: string
+          position: number
+          title: string
+          updated_at: string
+          week_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          details?: string | null
+          done?: boolean
+          id?: string
+          position?: number
+          title: string
+          updated_at?: string
+          week_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          details?: string | null
+          done?: boolean
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+          week_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "missions_week_id_fkey"
+            columns: ["week_id"]
+            isOneToOne: false
+            referencedRelation: "mission_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           id: string
