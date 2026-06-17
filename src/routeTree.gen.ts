@@ -24,6 +24,7 @@ import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminCalendarRouteImport } from './routes/admin.calendar'
 
 const SelectTeamRoute = SelectTeamRouteImport.update({
   id: '/select-team',
@@ -101,10 +102,16 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCalendarRoute = AdminCalendarRouteImport.update({
+  id: '/admin/calendar',
+  path: '/admin/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/select-team': typeof SelectTeamRoute
+  '/admin/calendar': typeof AdminCalendarRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/select-team': typeof SelectTeamRoute
+  '/admin/calendar': typeof AdminCalendarRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/select-team': typeof SelectTeamRoute
+  '/admin/calendar': typeof AdminCalendarRoute
   '/admin/login': typeof AdminLoginRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/orders': typeof AdminOrdersRoute
@@ -159,6 +168,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/select-team'
+    | '/admin/calendar'
     | '/admin/login'
     | '/admin/notifications'
     | '/admin/orders'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/select-team'
+    | '/admin/calendar'
     | '/admin/login'
     | '/admin/notifications'
     | '/admin/orders'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/select-team'
+    | '/admin/calendar'
     | '/admin/login'
     | '/admin/notifications'
     | '/admin/orders'
@@ -211,6 +223,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SelectTeamRoute: typeof SelectTeamRoute
+  AdminCalendarRoute: typeof AdminCalendarRoute
   AdminLoginRoute: typeof AdminLoginRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminOrdersRoute: typeof AdminOrdersRoute
@@ -333,12 +346,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/calendar': {
+      id: '/admin/calendar'
+      path: '/admin/calendar'
+      fullPath: '/admin/calendar'
+      preLoaderRoute: typeof AdminCalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SelectTeamRoute: SelectTeamRoute,
+  AdminCalendarRoute: AdminCalendarRoute,
   AdminLoginRoute: AdminLoginRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminOrdersRoute: AdminOrdersRoute,

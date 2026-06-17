@@ -1,60 +1,99 @@
-# Improvement Ideas for the Admin Panel
+# Three improvements
 
-Below are concrete improvements grouped by impact. Tell me which ones to build (you can pick any combination) and I'll come back with a focused implementation plan.
+## 1. Fix the invoice PDF export
 
-## 1. Invoice / Order Document Export (your explicit ask)
-- Per-order **"Download Invoice"** button in `admin.orders.tsx` and in the team's `shop.orders.tsx` history.
-- Formats: **PDF** (default, using `jspdf` + `jspdf-autotable`, full RTL Hebrew support) and **DOCX** (using `docx` lib) — user picks from a small dropdown on the button.
-- Contents: team name, contact + phone, ordered-by name, order #, date, status, line items table (name / qty / price / line total), subtotal, notes, and a footer with company/branding from `app_settings`.
-- Bulk export: select multiple orders → "Download all as ZIP" (PDFs merged or zipped).
-- Monthly statement per team: one PDF summarizing all orders in a chosen month with totals vs. monthly limit.
+**Error:** `Attempting to parse an unsupported color function "lab"`.
+**Cause:** `html2canvas` can't parse the modern `oklch()` / `lab()` colors that Tailwind v4 and the shadcn theme emit. As soon as we snapshot a DOM node that inherits any themed color, it throws.
 
-## 2. Better Order Visibility for Admins
-- **Dashboard widgets on `admin.index`**: today's orders count, awaiting-approval count, low-stock items, teams over 80% of monthly budget, replacement requests pending.
-- **Inline order detail drawer** instead of only the edit dialog — shows full item list, team budget usage, prior orders from same team, and a status timeline.
-- **Status timeline / audit log** on each order (who changed status and when). Requires a small `order_status_history` table.
-- **Color-coded row highlights** for urgent states (awaiting_approval > 24h, ready > 48h not picked up).
-- **Sticky filter bar + saved filter presets** ("Today", "This week", "Awaiting approval", per team).
-- **Search box** by order #, team name, contact phone, or item name.
-- **Column sort + pagination** (current list can get long); virtualized scrolling for big result sets.
+**Fix:** stop using `html2canvas` for the invoice. Generate the PDF directly with `jsPDF` + `jspdf-autotable`, and embed a Hebrew TTF (Heebo or Rubik) so RTL text renders correctly.
 
-## 3. Order Workflow Quality-of-Life
-- **Quick-action buttons** per row (Approve / Mark Ready / Complete) instead of opening the status dropdown each time.
-- **Bulk actions**: select N orders → bulk approve / mark ready / export.
-- **Print-friendly "Picking slip"** view for warehouse staff — large fonts, checkboxes per item, grouped by storage location.
-- **Reject / Cancel with reason** — captured note shown to the team.
-- **Internal admin notes** field on each order (not visible to team).
-- **Auto-notify team** (push + optional email) on every status change, with a templated message.
+- Add dep: `jspdf-autotable`.
+- Bundle a Heebo regular + bold `.ttf` as base64 under `src/assets/fonts/` and register it via `pdf.addFileToVFS` / `pdf.addFont`.
+- Rewrite `downloadOrderInvoicePDF` in `src/lib/invoice.ts` to draw the header, meta block, items table (autotable), totals, notes — all with `pdf.setFont("Heebo")` and `align: "right"` for RTL. No DOM, no html2canvas.
+- Remove `html2canvas` import (and dep if unused elsewhere).
+- DOCX path is unchanged.
 
-## 4. Reporting & Insights
-- **CSV/Excel export already exists**; add **PDF summary report** for a date range with charts (orders per team, top products, spend vs. budget).
-- **Top products** and **slow movers** views to inform stocking decisions.
-- **Team scorecard**: avg order size, cancellation rate, replacement request rate.
+## 2. Compact-pill search bars
 
-## 5. Replacements Panel Parity
-- Same invoice-style export for replacement requests.
-- Group replacement requests by product for the inventory team ("you need to prep X of item Y across 4 teams").
+A single shared style applied to every search input in admin + shop:
+- height 32px, `rounded-full`, `bg-muted/60`, no visible border, focus ring only
+- search icon inside on the right (RTL), `text-xs` placeholder, max-width ~ 240px on desktop / full width on mobile
 
-## 6. Small but high-value polish
-- Keyboard shortcuts (e.g. `a` approve, `r` ready, `/` focus search).
-- Persist last-used filters in `localStorage`.
-- Toast with "Undo" after status changes / deletions.
-- Empty-state illustrations and clearer loading skeletons.
+Implementation: add a small `<SearchInput />` component in `src/components/ui/search-input.tsx` and swap the existing search inputs to use it in:
+- `src/routes/admin.orders.tsx`
+- `src/routes/admin.products.tsx`
+- `src/routes/admin.teams.tsx`
+- `src/routes/admin.users.tsx`
+- `src/routes/admin.stock.tsx`
+- `src/routes/admin.replacements.tsx`
+- `src/routes/shop.index.tsx`
+- `src/routes/shop.orders.tsx`
+- `src/routes/shop.replacements.tsx`
+
+(Only the ones that actually have a search box today get touched.)
+
+## 3. Weekly mission calendar (admin-only)
+
+A weekly planner where an admin lays out missions per workday and signs off on the week, with PDF/DOCX export.
+
+### Data model (migration)
+
+```text
+mission_weeks
+  id, year int, week int (ISO), notes text
+  created_by uuid, created_by_name text
+  author_signed_at timestamptz, author_signature_name text
+  approver_signed_at timestamptz, approver_signature_name text, approver_user_id uuid
+  locked boolean (true once both signatures present)
+  unique(year, week)
+
+missions
+  id, week_id fk → mission_weeks
+  day_of_week int (0=Sun … 6=Sat, Israeli work week)
+  position int (order inside the day)
+  title text, details text, done boolean
+```
+
+- Both tables: `GRANT` to `authenticated` + `service_role`, RLS on, policies restrict all ops to `has_role(auth.uid(),'admin')`.
+- Trigger `touch_updated_at`.
+
+### Server functions (`src/lib/missions.functions.ts`)
+
+All `.middleware([requireSupabaseAuth])` + admin-role check inside the handler.
+
+- `getWeek({ year, week })` → ensures row exists, returns week + missions grouped by day
+- `upsertMission({ week_id, day_of_week, id?, title, details })`
+- `deleteMission({ id })`
+- `toggleMissionDone({ id, done })`
+- `signWeek({ week_id, role: 'author'|'approver', signature_name })` — sets the matching signature fields; when both filled, sets `locked=true`. Edits are blocked while locked.
+- `listRecentWeeks({ limit })` — for a small picker.
+
+### UI: `src/routes/admin.calendar.tsx`
+
+- Header: ISO week picker (prev / next / "today"), shows `שבוע 24 · 8–14 ביוני 2026` and year.
+- Grid: 6 day columns (Sun–Fri, Israeli work week — Sat hidden by default, toggle to show).
+  - Each column = card with day name, date, "+ הוסף משימה" button.
+  - Missions render as small rows with checkbox (done), title, details, edit / delete.
+- Right sidebar: week notes + two signature blocks:
+  - "נחתם על ידי האחראי" — typed name + Sign button → calls `signWeek({ role:'author' })`.
+  - "אישור מנהל בכיר" — visible only to admins; typed name + Sign button → `signWeek({ role:'approver' })`.
+  - When both signed → banner "השבוע נחתם ונעול" and all edit controls disabled.
+- Export buttons (top right): "הורד PDF" / "הורד DOCX".
+
+Add to admin bottom tab bar / sidebar nav.
+
+### Weekly export
+
+- **PDF**: same Heebo-based `jsPDF` setup from fix #1. Layout = title (`תכנית שבועית · שבוע N · YYYY`), team/author meta, a 6-column autotable (one column per day, missions stacked as bullet lines), notes box, two signature lines with names + dates.
+- **DOCX**: native `docx` package, RTL paragraphs, single 6-column table mirroring the PDF, signature lines at the bottom.
+
+Files: `src/lib/weekly-export.ts` exporting `downloadWeeklyPDF(week)` and `downloadWeeklyDOCX(week)`.
 
 ---
 
-## Recommended first slice (if you want me to just pick)
-1. **PDF + DOCX invoice download** on each order (admin + team views), branded from `app_settings`.
-2. **Admin dashboard widgets** (today / awaiting / low stock / over-budget teams).
-3. **Order detail drawer** with status timeline + internal admin notes.
-4. **Quick-action buttons + search box + saved filter presets** on the orders list.
-
-### Technical notes for the first slice
-- Add deps: `jspdf`, `jspdf-autotable`, `docx`, `file-saver` (all client-side, no server work needed for generation).
-- Hebrew/RTL: embed a Hebrew TTF (e.g. Heebo) as base64 into the PDF generator so glyphs render correctly.
-- New tables (only if you approve timeline + admin notes):
-  - `order_status_history(order_id, from_status, to_status, changed_by, changed_at, note)`
-  - add `admin_notes text` column to `orders`.
-- New server fns in `admin.functions.ts`: `getOrderDetail(id)` returning order + history + team budget context.
-
-**Which of these should I plan in detail and build?**
+## Technical notes
+- All new server fns require `attachSupabaseAuth` (already wired).
+- Admin role check pattern uses the existing `has_role` RPC.
+- ISO week math via `date-fns` `getISOWeek` / `setISOWeek` / `startOfISOWeek` (already a transitive dep; add explicitly if not).
+- Heebo TTF: download once, commit as base64 module so the PDF lib has no network dependency at runtime.
+- No changes to existing order/replacement flows beyond fix #1.

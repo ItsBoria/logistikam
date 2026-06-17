@@ -1,13 +1,14 @@
-// Invoice generators for orders. Hebrew/RTL friendly.
-// - PDF: html2canvas snapshot embedded in jsPDF (renders Hebrew correctly using the page font).
-// - DOCX: native docx package with RTL paragraphs.
+// Invoice generators for orders (Hebrew / RTL).
+// PDF uses jsPDF + jspdf-autotable with an embedded Heebo font so Hebrew renders
+// without needing to snapshot the DOM (avoids the html2canvas oklch/lab issue).
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import autoTable from "jspdf-autotable";
 import { saveAs } from "file-saver";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType,
 } from "docx";
+import { attachHeebo } from "./pdf-fonts";
 
 export type InvoiceOrder = {
   id: string;
@@ -42,131 +43,139 @@ function teamName(o: InvoiceOrder) {
   return o.team_name ?? o.teams?.name ?? "";
 }
 
-// ----------------- PDF -----------------
-
-function buildInvoiceHtml(o: InvoiceOrder, brand: { name: string; subtitle?: string }) {
-  const items = o.order_items
-    .map((it, i) => {
-      const price = Number(it.price);
-      const line = price * it.quantity;
-      return `
-      <tr>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${i + 1}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb">${escapeHtml(it.name)}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:center">${it.quantity}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;direction:ltr">${fmtCurrency(price)}</td>
-        <td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;direction:ltr">${fmtCurrency(line)}</td>
-      </tr>`;
-    })
-    .join("");
-
-  return `
-  <div dir="rtl" style="font-family: 'Heebo','Arial','Helvetica',sans-serif; color:#0f172a; padding:32px; width:780px; background:#fff">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0f172a;padding-bottom:12px">
-      <div>
-        <div style="font-size:22px;font-weight:700">${escapeHtml(brand.name)}</div>
-        ${brand.subtitle ? `<div style="font-size:12px;color:#64748b">${escapeHtml(brand.subtitle)}</div>` : ""}
-      </div>
-      <div style="text-align:left">
-        <div style="font-size:18px;font-weight:700">חשבונית הזמנה</div>
-        <div style="font-size:12px;color:#64748b">מס׳ ${o.id.slice(0, 8).toUpperCase()}</div>
-        <div style="font-size:12px;color:#64748b">${fmtDate(o.created_at)}</div>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0">
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">צוות</div>
-        <div style="font-weight:600">${escapeHtml(teamName(o))}</div>
-        ${o.ordered_by_name ? `<div style="font-size:12px;color:#475569;margin-top:2px">מזמין: ${escapeHtml(o.ordered_by_name)}</div>` : ""}
-        ${o.contact_phone ? `<div style="font-size:12px;color:#475569;direction:ltr;text-align:right">טלפון: ${escapeHtml(o.contact_phone)}</div>` : ""}
-      </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
-        <div style="font-size:11px;color:#64748b;margin-bottom:4px">סטטוס</div>
-        <div style="font-weight:600">${escapeHtml(STATUS_LABEL[o.status] ?? o.status)}</div>
-      </div>
-    </div>
-
-    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
-      <thead>
-        <tr style="background:#0f172a;color:#fff">
-          <th style="padding:8px;text-align:center;width:36px">#</th>
-          <th style="padding:8px;text-align:right">מוצר</th>
-          <th style="padding:8px;text-align:center;width:64px">כמות</th>
-          <th style="padding:8px;text-align:left;width:110px">מחיר</th>
-          <th style="padding:8px;text-align:left;width:120px">סה״כ</th>
-        </tr>
-      </thead>
-      <tbody>${items}</tbody>
-    </table>
-
-    <div style="display:flex;justify-content:flex-end;margin-top:12px">
-      <div style="min-width:240px;border-top:2px solid #0f172a;padding-top:8px">
-        <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700">
-          <span>סה״כ לתשלום</span>
-          <span style="direction:ltr">${fmtCurrency(Number(o.total))}</span>
-        </div>
-        <div style="font-size:11px;color:#64748b;margin-top:2px;text-align:left">כולל מע״מ</div>
-      </div>
-    </div>
-
-    ${o.notes ? `<div style="margin-top:16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:12px"><strong>הערות:</strong> ${escapeHtml(o.notes)}</div>` : ""}
-
-    <div style="margin-top:28px;text-align:center;font-size:11px;color:#94a3b8">
-      נוצר ב-${new Date().toLocaleString("he-IL")} · ${escapeHtml(brand.name)}
-    </div>
-  </div>`;
-}
-
-function escapeHtml(s: string) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
-}
+// ---------------- PDF ----------------
 
 export async function downloadOrderInvoicePDF(o: InvoiceOrder, brandName = "Logistikam") {
-  const host = document.createElement("div");
-  host.style.position = "fixed";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.innerHTML = buildInvoiceHtml(o, { name: brandName, subtitle: "מסמך הזמנה" });
-  document.body.appendChild(host);
-  try {
-    const target = host.firstElementChild as HTMLElement;
-    const canvas = await html2canvas(target, { scale: 2, backgroundColor: "#ffffff" });
-    const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 24;
-    const imgW = pageW - margin * 2;
-    const imgH = (canvas.height * imgW) / canvas.width;
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    if (imgH <= pageH - margin * 2) {
-      pdf.addImage(dataUrl, "JPEG", margin, margin, imgW, imgH);
-    } else {
-      // Multi-page split
-      const pageCanvasH = (canvas.width * (pageH - margin * 2)) / imgW;
-      let rendered = 0;
-      while (rendered < canvas.height) {
-        const slice = document.createElement("canvas");
-        slice.width = canvas.width;
-        slice.height = Math.min(pageCanvasH, canvas.height - rendered);
-        const ctx = slice.getContext("2d")!;
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, slice.width, slice.height);
-        ctx.drawImage(canvas, 0, rendered, canvas.width, slice.height, 0, 0, slice.width, slice.height);
-        const sliceData = slice.toDataURL("image/jpeg", 0.92);
-        const h = (slice.height * imgW) / slice.width;
-        if (rendered > 0) pdf.addPage();
-        pdf.addImage(sliceData, "JPEG", margin, margin, imgW, h);
-        rendered += slice.height;
-      }
-    }
-    pdf.save(`invoice-${o.id.slice(0, 8)}.pdf`);
-  } finally {
-    host.remove();
+  const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+  await attachHeebo(pdf);
+
+  const pageW = pdf.internal.pageSize.getWidth();
+  const margin = 36;
+  const rightX = pageW - margin; // RTL anchor
+  let y = margin;
+
+  // Brand header (left side)
+  pdf.setFont("Heebo", "bold");
+  pdf.setFontSize(18);
+  pdf.text(brandName, margin, y + 6);
+  pdf.setFont("Heebo", "normal");
+  pdf.setFontSize(10);
+  pdf.setTextColor(120);
+  pdf.text("מסמך הזמנה", margin, y + 22);
+
+  // Invoice title (right side)
+  pdf.setTextColor(15);
+  pdf.setFont("Heebo", "bold");
+  pdf.setFontSize(16);
+  pdf.text("חשבונית הזמנה", rightX, y + 6, { align: "right" });
+  pdf.setFont("Heebo", "normal");
+  pdf.setFontSize(10);
+  pdf.setTextColor(120);
+  pdf.text(`מס׳ ${o.id.slice(0, 8).toUpperCase()}`, rightX, y + 22, { align: "right" });
+  pdf.text(fmtDate(o.created_at), rightX, y + 36, { align: "right" });
+
+  y += 50;
+  pdf.setDrawColor(15);
+  pdf.setLineWidth(1);
+  pdf.line(margin, y, rightX, y);
+  y += 14;
+
+  // Meta block (two columns)
+  pdf.setTextColor(15);
+  pdf.setFont("Heebo", "bold");
+  pdf.setFontSize(11);
+  pdf.text("צוות", rightX, y, { align: "right" });
+  pdf.setFont("Heebo", "normal");
+  pdf.text(teamName(o), rightX, y + 14, { align: "right" });
+  let metaY = y + 28;
+  if (o.ordered_by_name) {
+    pdf.text(`מזמין: ${o.ordered_by_name}`, rightX, metaY, { align: "right" });
+    metaY += 14;
   }
+  if (o.contact_phone) {
+    pdf.text(`טלפון: ${o.contact_phone}`, rightX, metaY, { align: "right" });
+    metaY += 14;
+  }
+
+  pdf.setFont("Heebo", "bold");
+  pdf.text("סטטוס", margin, y);
+  pdf.setFont("Heebo", "normal");
+  pdf.text(STATUS_LABEL[o.status] ?? o.status, margin, y + 14);
+
+  y = Math.max(metaY, y + 42) + 8;
+
+  // Items table (autotable) — RTL: columns ordered right→left
+  const rows = o.order_items.map((it, i) => {
+    const price = Number(it.price);
+    return [
+      fmtCurrency(price * it.quantity),
+      fmtCurrency(price),
+      String(it.quantity),
+      it.name,
+      String(i + 1),
+    ];
+  });
+
+  autoTable(pdf, {
+    startY: y,
+    head: [["סה״כ", "מחיר", "כמות", "מוצר", "#"]],
+    body: rows,
+    styles: { font: "Heebo", fontSize: 10, halign: "right", cellPadding: 6, textColor: 20 },
+    headStyles: { fillColor: [15, 23, 42], textColor: 255, halign: "center", fontStyle: "bold" },
+    columnStyles: {
+      0: { halign: "left", cellWidth: 80 },
+      1: { halign: "left", cellWidth: 70 },
+      2: { halign: "center", cellWidth: 50 },
+      3: { halign: "right" },
+      4: { halign: "center", cellWidth: 30 },
+    },
+    margin: { left: margin, right: margin },
+  });
+
+  const afterTable = (pdf as any).lastAutoTable?.finalY ?? y + 40;
+  y = afterTable + 16;
+
+  // Totals
+  pdf.setDrawColor(15);
+  pdf.setLineWidth(1.2);
+  pdf.line(rightX - 220, y, rightX, y);
+  y += 16;
+  pdf.setFont("Heebo", "bold");
+  pdf.setFontSize(14);
+  pdf.text("סה״כ לתשלום", rightX, y, { align: "right" });
+  pdf.text(fmtCurrency(Number(o.total)), rightX - 220, y, { align: "left" });
+  pdf.setFont("Heebo", "normal");
+  pdf.setFontSize(9);
+  pdf.setTextColor(120);
+  y += 12;
+  pdf.text("כולל מע״מ", rightX - 220, y, { align: "left" });
+
+  // Notes
+  if (o.notes) {
+    y += 22;
+    pdf.setTextColor(15);
+    pdf.setFont("Heebo", "bold");
+    pdf.setFontSize(10);
+    pdf.text("הערות:", rightX, y, { align: "right" });
+    pdf.setFont("Heebo", "normal");
+    const lines = pdf.splitTextToSize(o.notes, rightX - margin - 50);
+    pdf.text(lines, rightX, y + 14, { align: "right" });
+  }
+
+  // Footer
+  pdf.setFontSize(8);
+  pdf.setTextColor(140);
+  pdf.text(
+    `נוצר ב-${new Date().toLocaleString("he-IL")} · ${brandName}`,
+    pageW / 2,
+    pdf.internal.pageSize.getHeight() - 20,
+    { align: "center" },
+  );
+
+  pdf.save(`invoice-${o.id.slice(0, 8)}.pdf`);
 }
 
-// ----------------- DOCX -----------------
+// ---------------- DOCX ----------------
 
 const border = { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" };
 const cellBorders = { top: border, bottom: border, left: border, right: border };

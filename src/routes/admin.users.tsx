@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ShieldCheck, Package, Search, User as UserIcon } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Package, User as UserIcon } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
 
@@ -151,15 +152,13 @@ function Admins() {
         </TabsContent>
 
         <TabsContent value="all" className="mt-4 space-y-3">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="חיפוש לפי אימייל או שם..."
-              className="pr-9"
-            />
-          </div>
+          <SearchInput
+            containerClassName="max-w-none"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onClear={() => setQuery("")}
+            placeholder="חיפוש לפי אימייל או שם..."
+          />
           <Card className="divide-y">
             {searching && !searchResults?.length && (
               <div className="p-8 text-center text-muted-foreground text-sm">טוען...</div>
