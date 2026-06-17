@@ -248,9 +248,14 @@ function OrdersPage() {
           ))}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
-          <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 absolute right-2 top-2.5 text-muted-foreground pointer-events-none" />
-            <Input className="pr-8" placeholder="חפש לפי מס׳, צוות, מזמין, טלפון או מוצר" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="md:col-span-2">
+            <SearchInput
+              containerClassName="max-w-none"
+              placeholder="חפש לפי מס׳, צוות, מזמין, טלפון או מוצר"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch("")}
+            />
           </div>
           <Select value={teamId} onValueChange={setTeamId}>
             <SelectTrigger><SelectValue placeholder="צוות" /></SelectTrigger>

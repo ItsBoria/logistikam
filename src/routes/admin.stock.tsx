@@ -7,7 +7,8 @@ import { listProductsAdmin, updateProductStock } from "@/lib/admin.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, Search, AlertTriangle } from "lucide-react";
+import { Loader2, Save, AlertTriangle } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/stock")({
@@ -76,10 +77,13 @@ function Stock() {
           <h1 className="text-2xl font-bold">מלאי</h1>
           <p className="text-sm text-muted-foreground">עדכון כמות במלאי וסף התראה.</p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש מוצר/קטגוריה" className="pr-9" />
-        </div>
+        <SearchInput
+          containerClassName="w-full sm:w-72 max-w-none"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onClear={() => setQ("")}
+          placeholder="חיפוש מוצר/קטגוריה"
+        />
       </div>
 
       {isLoading ? (

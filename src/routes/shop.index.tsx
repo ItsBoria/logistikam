@@ -17,7 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, AlertTriangle, Loader2, Trash2, Search } from "lucide-react";
+import { ShoppingCart, Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -169,10 +170,13 @@ function Shop() {
 
       <main className="max-w-6xl mx-auto p-4 space-y-4">
         <Card className="p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pr-10" placeholder="חיפוש מוצר..." value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
+          <SearchInput
+            containerClassName="flex-1 max-w-none"
+            placeholder="חיפוש מוצר..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onClear={() => setSearch("")}
+          />
           {categories.length > 0 && (
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger className="sm:w-48"><SelectValue /></SelectTrigger>
