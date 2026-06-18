@@ -124,16 +124,16 @@ function Calendar() {
         title: title.trim(), details: details.trim() || null,
       }});
       setEditor({ open: false, day: 0 });
-      qc.invalidateQueries({ queryKey: ["mission-week", year, week] });
+      qc.invalidateQueries({ queryKey: invalidateKey });
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
   async function removeMission(id: string) {
     if (!confirm("למחוק משימה?")) return;
-    try { await delFn({ data: { id } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await delFn({ data: { id } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
   async function toggleDone(m: MissionRow) {
-    try { await toggleFn({ data: { id: m.id, done: !m.done } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await toggleFn({ data: { id: m.id, done: !m.done } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
   async function saveNotes() {
@@ -147,13 +147,13 @@ function Calendar() {
     if (!name) { toast.error("הזן שם לחתימה"); return; }
     try {
       await signFn({ data: { week_id: data.week.id, role, signature_name: name } });
-      qc.invalidateQueries({ queryKey: ["mission-week", year, week] });
+      qc.invalidateQueries({ queryKey: invalidateKey });
       toast.success("נחתם");
     } catch (e: any) { toast.error(e.message); }
   }
   async function reopen() {
     if (!data?.week || !confirm("לפתוח את השבוע מחדש ולמחוק חתימות?")) return;
-    try { await reopenFn({ data: { week_id: data.week.id } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await reopenFn({ data: { week_id: data.week.id } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
 
