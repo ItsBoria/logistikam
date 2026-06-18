@@ -290,18 +290,18 @@ function Calendar() {
       )}
 
       {/* Notes + signatures */}
-      {data && (
+      {data?.week && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Card className="p-3 md:col-span-1">
             <div className="text-sm font-semibold mb-2">הערות שבועיות</div>
             <Textarea
               rows={5}
               value={notesDraft}
-              disabled={locked}
+              disabled={!canEdit}
               onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
               placeholder="הערות, סיכומים, יעדים..."
             />
-            {notesDirty && !locked && (
+            {notesDirty && canEdit && (
               <div className="mt-2 flex justify-end">
                 <Button size="sm" onClick={saveNotes}>שמור הערות</Button>
               </div>
@@ -315,11 +315,13 @@ function Calendar() {
                 <div className="font-medium">{data.week.author_signature_name}</div>
                 <div className="text-xs text-muted-foreground">{new Date(data.week.author_signed_at).toLocaleString("he-IL")}</div>
               </div>
-            ) : (
+            ) : canSignAuthor ? (
               <div className="flex flex-col gap-2">
                 <Input value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder="שם הרכז" />
                 <Button size="sm" onClick={() => sign("author")}>חתום כרכז</Button>
               </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">ממתין לחתימת בעל הלוח</div>
             )}
           </Card>
 
@@ -330,11 +332,13 @@ function Calendar() {
                 <div className="font-medium">{data.week.approver_signature_name}</div>
                 <div className="text-xs text-muted-foreground">{new Date(data.week.approver_signed_at).toLocaleString("he-IL")}</div>
               </div>
-            ) : (
+            ) : canSignApprover ? (
               <div className="flex flex-col gap-2">
                 <Input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="שם המנהל" />
                 <Button size="sm" onClick={() => sign("approver")}>אשר ונעל את השבוע</Button>
               </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">רק מנהל מאשר רשאי לחתום כאן</div>
             )}
           </Card>
         </div>
