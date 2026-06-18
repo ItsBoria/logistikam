@@ -142,28 +142,19 @@ function Shop() {
   return (
     <div className="min-h-screen bg-secondary/30">
       <AdminActingBanner />
-      <header className="bg-card border-b sticky top-0 z-30 backdrop-blur">
-        <div className="max-w-3xl mx-auto px-4 pt-5 pb-4 text-center">
-          <BrandLogo size={56} className="mx-auto mb-2 rounded-2xl drop-shadow" />
-          <h1 className="text-xl font-bold tracking-tight">ברוכים הבאים</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {data?.team.name}
-            {limit > 0 && <> · נותר {formatCurrency(Math.max(0, remaining))} מ-{formatCurrency(limit)}</>}
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
-              <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
-            </Button>
-          </div>
+      <header className="bg-card/80 border-b sticky top-0 z-30 backdrop-blur">
+        <div className="max-w-3xl mx-auto px-4 pt-4 pb-3 text-center">
+          <BrandLogo size={48} className="mx-auto mb-1.5 rounded-2xl drop-shadow" />
+          <h1 className="text-lg font-bold tracking-tight">{data?.team.name ?? "ברוכים הבאים"}</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
         </div>
         {willExceed ? (
-          <div className="bg-warning/15 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-4 h-4" /> ההזמנה הנוכחית חורגת מהמסגרת החודשית ותדרוש אישור מנהל
+          <div className="bg-warning/15 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
+            <AlertTriangle className="w-3.5 h-3.5" /> ההזמנה חורגת מהמסגרת — תדרוש אישור מנהל
           </div>
         ) : limit > 0 && remaining / limit < 0.2 ? (
-          <div className="bg-warning/20 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-4 h-4" /> נותרו רק {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
+          <div className="bg-warning/20 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
+            <AlertTriangle className="w-3.5 h-3.5" /> נותרו {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
           </div>
         ) : null}
       </header>
