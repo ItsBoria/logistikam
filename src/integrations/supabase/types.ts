@@ -93,6 +93,7 @@ export type Database = {
           id: string
           locked: boolean
           notes: string | null
+          owner_user_id: string
           updated_at: string
           week: number
           year: number
@@ -109,6 +110,7 @@ export type Database = {
           id?: string
           locked?: boolean
           notes?: string | null
+          owner_user_id: string
           updated_at?: string
           week: number
           year: number
@@ -125,6 +127,7 @@ export type Database = {
           id?: string
           locked?: boolean
           notes?: string | null
+          owner_user_id?: string
           updated_at?: string
           week?: number
           year?: number
@@ -350,6 +353,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          is_approver: boolean
           updated_at: string
         }
         Insert: {
@@ -357,6 +361,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          is_approver?: boolean
           updated_at?: string
         }
         Update: {
@@ -364,6 +369,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          is_approver?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -637,6 +643,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_approver: { Args: { _user_id: string }; Returns: boolean }
       team_month_spent: { Args: { _team_id: string }; Returns: number }
     }
     Enums: {

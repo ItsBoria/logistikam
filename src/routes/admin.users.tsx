@@ -11,13 +11,15 @@ import {
   searchRegisteredUsers,
 } from "@/lib/admin.functions";
 import { listActiveTeams, setUserTeamAdmin } from "@/lib/membership.functions";
+import { setAdminApprover } from "@/lib/missions.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ShieldCheck, Package, User as UserIcon } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Package, User as UserIcon, Star } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
@@ -38,6 +40,7 @@ function Admins() {
   const searchFn = useServerFn(searchRegisteredUsers);
   const teamsFn = useServerFn(listActiveTeams);
   const setTeamFn = useServerFn(setUserTeamAdmin);
+  const approverFn = useServerFn(setAdminApprover);
 
   const { data: admins } = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn() });
   const { data: teams } = useQuery({ queryKey: ["active-teams-admin"], queryFn: () => teamsFn() });
@@ -88,6 +91,14 @@ function Admins() {
       qc.invalidateQueries({ queryKey: ["registered-users"] });
     } catch (e: any) { toast.error(e.message); }
   }
+  async function toggleApprover(userId: string, val: boolean) {
+    try {
+      await approverFn({ data: { user_id: userId, is_approver: val } });
+      toast.success(val ? "סומן כמאשר" : "הוסר סימון מאשר");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      qc.invalidateQueries({ queryKey: ["calendar-admins"] });
+    } catch (e: any) { toast.error(e.message); }
+  }
 
 
   return (
@@ -129,7 +140,14 @@ function Admins() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isAdmin && (
+                      <label className="flex items-center gap-1.5 text-xs bg-muted/60 rounded-full px-2.5 h-9" title="מאשר חתימות שבועיות">
+                        <Star className={`w-3.5 h-3.5 ${a.is_approver ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`} />
+                        <span>מאשר</span>
+                        <Switch checked={!!a.is_approver} onCheckedChange={(v) => toggleApprover(a.user_id, v)} />
+                      </label>
+                    )}
                     {!isMe && (
                       <Select value={isAdmin ? "admin" : "staff"} onValueChange={(v) => changeRole(a.user_id, v as any)}>
                         <SelectTrigger className="w-36 h-9 text-xs"><SelectValue /></SelectTrigger>

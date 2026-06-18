@@ -107,7 +107,11 @@ export const listAdminUsers = createServerFn({ method: "GET" })
       .select("user_id, role, created_at")
       .in("role", ["admin", "staff"]);
     const { data: list } = await supabaseAdmin.auth.admin.listUsers();
-    // Group roles per user
+    const userIds = Array.from(new Set((roles ?? []).map((r: any) => r.user_id)));
+    const { data: profs } = userIds.length
+      ? await supabaseAdmin.from("profiles").select("id, is_approver").in("id", userIds)
+      : { data: [] as any[] };
+    const approverMap = new Map<string, boolean>((profs ?? []).map((p: any) => [p.id, !!p.is_approver]));
     const byUser = new Map<string, { roles: string[]; created_at: string }>();
     for (const r of roles ?? []) {
       const row = r as any;
@@ -125,6 +129,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
         roles: info.roles as ("admin" | "staff")[],
         is_admin: info.roles.includes("admin"),
         is_staff: info.roles.includes("staff"),
+        is_approver: approverMap.get(userId) ?? false,
         created_at: info.created_at,
       };
     });

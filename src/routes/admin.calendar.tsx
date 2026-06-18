@@ -18,10 +18,12 @@ import {
 import { toast } from "sonner";
 import {
   getMissionWeek, upsertMission, deleteMission, toggleMissionDone,
-  updateWeekNotes, signMissionWeek, reopenMissionWeek,
+  updateWeekNotes, signMissionWeek, reopenMissionWeek, listCalendarAdmins,
   type MissionRow,
 } from "@/lib/missions.functions";
 import { downloadWeeklyPDF, downloadWeeklyDOCX, isoWeekToRange } from "@/lib/weekly-export";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSupabaseSession } from "@/hooks/use-supabase-session";
 
 export const Route = createFileRoute("/admin/calendar")({
   ssr: false,
@@ -49,15 +51,24 @@ function addWeeks(year: number, week: number, delta: number): { year: number; we
 
 function Calendar() {
   const qc = useQueryClient();
+  const { session } = useSupabaseSession();
+  const myId = session?.user.id ?? "";
   const today = useMemo(() => getISOWeek(new Date()), []);
   const [year, setYear] = useState(today.year);
   const [week, setWeek] = useState(today.week);
   const [showSat, setShowSat] = useState(false);
+  const [ownerId, setOwnerId] = useState<string>("");
+
+  const adminsFn = useServerFn(listCalendarAdmins);
+  const { data: admins } = useQuery({ queryKey: ["calendar-admins"], queryFn: () => adminsFn() });
+
+  useEffect(() => { if (!ownerId && myId) setOwnerId(myId); }, [myId, ownerId]);
 
   const getFn = useServerFn(getMissionWeek);
   const { data, isLoading } = useQuery({
-    queryKey: ["mission-week", year, week],
-    queryFn: () => getFn({ data: { year, week } }),
+    enabled: !!ownerId,
+    queryKey: ["mission-week", year, week, ownerId],
+    queryFn: () => getFn({ data: { year, week, owner_user_id: ownerId } }),
   });
 
   const upsertFn = useServerFn(upsertMission);
@@ -91,6 +102,10 @@ function Calendar() {
   (data?.missions ?? []).forEach((m) => { (grouped[m.day_of_week] ??= []).push(m); });
 
   const locked = !!data?.week?.locked;
+  const canEdit = !!data?.can_edit;
+  const canSignAuthor = !!data?.can_sign_author;
+  const canSignApprover = !!data?.can_sign_approver;
+  const invalidateKey = ["mission-week", year, week, ownerId] as const;
 
   function openCreate(day: number) {
     setEditor({ open: true, day });
@@ -109,16 +124,16 @@ function Calendar() {
         title: title.trim(), details: details.trim() || null,
       }});
       setEditor({ open: false, day: 0 });
-      qc.invalidateQueries({ queryKey: ["mission-week", year, week] });
+      qc.invalidateQueries({ queryKey: invalidateKey });
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
   async function removeMission(id: string) {
     if (!confirm("למחוק משימה?")) return;
-    try { await delFn({ data: { id } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await delFn({ data: { id } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
   async function toggleDone(m: MissionRow) {
-    try { await toggleFn({ data: { id: m.id, done: !m.done } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await toggleFn({ data: { id: m.id, done: !m.done } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
   async function saveNotes() {
@@ -132,22 +147,22 @@ function Calendar() {
     if (!name) { toast.error("הזן שם לחתימה"); return; }
     try {
       await signFn({ data: { week_id: data.week.id, role, signature_name: name } });
-      qc.invalidateQueries({ queryKey: ["mission-week", year, week] });
+      qc.invalidateQueries({ queryKey: invalidateKey });
       toast.success("נחתם");
     } catch (e: any) { toast.error(e.message); }
   }
   async function reopen() {
     if (!data?.week || !confirm("לפתוח את השבוע מחדש ולמחוק חתימות?")) return;
-    try { await reopenFn({ data: { week_id: data.week.id } }); qc.invalidateQueries({ queryKey: ["mission-week", year, week] }); }
+    try { await reopenFn({ data: { week_id: data.week.id } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
 
   async function exportPdf() {
-    if (!data) return;
+    if (!data?.week) return;
     try { await downloadWeeklyPDF(data.week, data.missions); } catch (e: any) { toast.error(e.message); }
   }
   async function exportDocx() {
-    if (!data) return;
+    if (!data?.week) return;
     try { await downloadWeeklyDOCX(data.week, data.missions); } catch (e: any) { toast.error(e.message); }
   }
 
@@ -164,9 +179,25 @@ function Calendar() {
           <h1 className="text-2xl font-bold">תכנית שבועית</h1>
           <p className="text-sm text-muted-foreground">
             שבוע {week} · {range.start.toLocaleDateString("he-IL")} – {range.end.toLocaleDateString("he-IL")} · {year}
+            {ownerId && ownerId !== myId && data?.is_owner === false && (
+              <> · <span className="text-amber-600">צפייה בלוח של מנהל אחר</span></>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {admins && admins.length > 0 && (
+            <Select value={ownerId} onValueChange={setOwnerId}>
+              <SelectTrigger className="h-9 w-48 text-xs"><SelectValue placeholder="בחר מנהל" /></SelectTrigger>
+              <SelectContent>
+                {admins.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.id === myId ? "הלוח שלי" : a.name}
+                    {a.is_approver ? " ⭐" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" onClick={() => step(-1)}><ChevronRight className="w-4 h-4" /></Button>
           <Button variant="outline" size="sm" onClick={goToday}>השבוע</Button>
           <Button variant="outline" size="sm" onClick={() => step(1)}><ChevronLeft className="w-4 h-4" /></Button>
@@ -175,7 +206,7 @@ function Calendar() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="sm"><FileText className="w-4 h-4 ml-1" />ייצוא</Button>
+              <Button size="sm" disabled={!data?.week}><FileText className="w-4 h-4 ml-1" />ייצוא</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem onClick={exportPdf}><FileText className="w-4 h-4 ml-2" />PDF</DropdownMenuItem>
@@ -201,6 +232,10 @@ function Calendar() {
 
       {isLoading || !data ? (
         <Card className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></Card>
+      ) : !data.week ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          המנהל לא יצר עדיין תכנית לשבוע זה.
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {days.map((d) => {
@@ -214,7 +249,7 @@ function Calendar() {
                     <div className="font-bold text-sm">{DAY_NAMES[d]}</div>
                     <div className="text-xs text-muted-foreground">{date.toLocaleDateString("he-IL")}</div>
                   </div>
-                  {!locked && (
+                  {canEdit && (
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openCreate(d)}>
                       <Plus className="w-4 h-4" />
                     </Button>
@@ -227,8 +262,9 @@ function Calendar() {
                       <div className="flex items-start gap-2">
                         <button
                           type="button"
-                          onClick={() => toggleDone(m)}
-                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${m.done ? "bg-emerald-600 border-emerald-600" : "border-muted-foreground/40"}`}
+                          onClick={() => canEdit && toggleDone(m)}
+                          disabled={!canEdit}
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${m.done ? "bg-emerald-600 border-emerald-600" : "border-muted-foreground/40"} ${!canEdit ? "cursor-default" : ""}`}
                           aria-label="סמן כבוצע"
                         >
                           {m.done && <CheckCircle2 className="w-3 h-3 text-white" />}
@@ -237,7 +273,7 @@ function Calendar() {
                           <div className={`font-medium ${m.done ? "line-through" : ""}`}>{m.title}</div>
                           {m.details && <div className="text-muted-foreground text-[11px] mt-0.5 whitespace-pre-wrap break-words">{m.details}</div>}
                         </div>
-                        {!locked && (
+                        {canEdit && (
                           <div className="opacity-0 group-hover:opacity-100 transition flex gap-0.5">
                             <button onClick={() => openEdit(m)} className="p-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3 h-3" /></button>
                             <button onClick={() => removeMission(m.id)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3 h-3" /></button>
@@ -254,18 +290,18 @@ function Calendar() {
       )}
 
       {/* Notes + signatures */}
-      {data && (
+      {data?.week && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Card className="p-3 md:col-span-1">
             <div className="text-sm font-semibold mb-2">הערות שבועיות</div>
             <Textarea
               rows={5}
               value={notesDraft}
-              disabled={locked}
+              disabled={!canEdit}
               onChange={(e) => { setNotesDraft(e.target.value); setNotesDirty(true); }}
               placeholder="הערות, סיכומים, יעדים..."
             />
-            {notesDirty && !locked && (
+            {notesDirty && canEdit && (
               <div className="mt-2 flex justify-end">
                 <Button size="sm" onClick={saveNotes}>שמור הערות</Button>
               </div>
@@ -279,11 +315,13 @@ function Calendar() {
                 <div className="font-medium">{data.week.author_signature_name}</div>
                 <div className="text-xs text-muted-foreground">{new Date(data.week.author_signed_at).toLocaleString("he-IL")}</div>
               </div>
-            ) : (
+            ) : canSignAuthor ? (
               <div className="flex flex-col gap-2">
                 <Input value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder="שם הרכז" />
                 <Button size="sm" onClick={() => sign("author")}>חתום כרכז</Button>
               </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">ממתין לחתימת בעל הלוח</div>
             )}
           </Card>
 
@@ -294,11 +332,13 @@ function Calendar() {
                 <div className="font-medium">{data.week.approver_signature_name}</div>
                 <div className="text-xs text-muted-foreground">{new Date(data.week.approver_signed_at).toLocaleString("he-IL")}</div>
               </div>
-            ) : (
+            ) : canSignApprover ? (
               <div className="flex flex-col gap-2">
                 <Input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="שם המנהל" />
                 <Button size="sm" onClick={() => sign("approver")}>אשר ונעל את השבוע</Button>
               </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">רק מנהל מאשר רשאי לחתום כאן</div>
             )}
           </Card>
         </div>

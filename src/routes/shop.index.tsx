@@ -17,8 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
+import { CartBudgetPill } from "@/components/cart-budget-pill";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -141,28 +142,19 @@ function Shop() {
   return (
     <div className="min-h-screen bg-secondary/30">
       <AdminActingBanner />
-      <header className="bg-card border-b sticky top-0 z-30 backdrop-blur">
-        <div className="max-w-3xl mx-auto px-4 pt-5 pb-4 text-center">
-          <BrandLogo size={56} className="mx-auto mb-2 rounded-2xl drop-shadow" />
-          <h1 className="text-xl font-bold tracking-tight">ברוכים הבאים</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {data?.team.name}
-            {limit > 0 && <> · נותר {formatCurrency(Math.max(0, remaining))} מ-{formatCurrency(limit)}</>}
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCheckout(true)} disabled={itemCount === 0}>
-              <ShoppingCart className="w-4 h-4 ml-2" /> סל ({itemCount})
-            </Button>
-          </div>
+      <header className="bg-card/80 border-b sticky top-0 z-30 backdrop-blur">
+        <div className="max-w-3xl mx-auto px-4 pt-4 pb-3 text-center">
+          <BrandLogo size={48} className="mx-auto mb-1.5 rounded-2xl drop-shadow" />
+          <h1 className="text-lg font-bold tracking-tight">{data?.team.name ?? "ברוכים הבאים"}</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
         </div>
         {willExceed ? (
-          <div className="bg-warning/15 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-4 h-4" /> ההזמנה הנוכחית חורגת מהמסגרת החודשית ותדרוש אישור מנהל
+          <div className="bg-warning/15 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
+            <AlertTriangle className="w-3.5 h-3.5" /> ההזמנה חורגת מהמסגרת — תדרוש אישור מנהל
           </div>
         ) : limit > 0 && remaining / limit < 0.2 ? (
-          <div className="bg-warning/20 text-warning-foreground text-sm px-4 py-2 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-4 h-4" /> נותרו רק {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
+          <div className="bg-warning/20 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
+            <AlertTriangle className="w-3.5 h-3.5" /> נותרו {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
           </div>
         ) : null}
       </header>
@@ -235,21 +227,17 @@ function Shop() {
             })}
           </div>
         )}
-        <div className="h-20 sm:hidden" aria-hidden />
+        <div className="h-24 sm:hidden" aria-hidden />
       </main>
 
-      {/* Sticky checkout bar (mobile) — sits above bottom tab bar */}
-      {itemCount > 0 && (
-        <div className="sm:hidden fixed inset-x-0 z-50 bg-card border-t shadow-lg p-3 flex items-center gap-3" style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}>
-          <div className="flex-1">
-            <div className="text-xs text-muted-foreground">סל: {itemCount} פריטים</div>
-            <div className="font-bold text-lg">{formatCurrency(total)}</div>
-          </div>
-          <Button className="h-12 px-6 text-base" onClick={() => setCheckout(true)}>
-            <ShoppingCart className="w-5 h-5 ml-2" /> מעבר לתשלום
-          </Button>
-        </div>
-      )}
+      <CartBudgetPill
+        itemCount={itemCount}
+        total={total}
+        spent={spent}
+        limit={limit}
+        willExceed={willExceed}
+        onOpen={() => itemCount > 0 && setCheckout(true)}
+      />
 
       <BottomTabBar pin={session!.pin} />
 

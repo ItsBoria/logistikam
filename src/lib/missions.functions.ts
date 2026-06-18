@@ -7,6 +7,11 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
   if (!data) throw new Error("Forbidden");
 }
 
+async function isApprover(ctx: { supabase: any; userId: string }) {
+  const { data } = await ctx.supabase.rpc("is_approver", { _user_id: ctx.userId });
+  return !!data;
+}
+
 export type MissionRow = {
   id: string;
   week_id: string;
@@ -21,6 +26,7 @@ export type WeekRow = {
   id: string;
   year: number;
   week: number;
+  owner_user_id: string;
   notes: string | null;
   created_by: string | null;
   created_by_name: string | null;
@@ -32,27 +38,76 @@ export type WeekRow = {
   locked: boolean;
 };
 
+export type AdminOption = { id: string; name: string; is_approver: boolean };
+
+export const listCalendarAdmins = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: roles } = await supabaseAdmin
+      .from("user_roles").select("user_id").eq("role", "admin");
+    const ids = (roles ?? []).map((r: any) => r.user_id);
+    if (!ids.length) return [] as AdminOption[];
+    const { data: profs } = await supabaseAdmin
+      .from("profiles").select("id, display_name, email, is_approver").in("id", ids);
+    return (profs ?? []).map((p: any) => ({
+      id: p.id,
+      name: p.display_name || p.email || p.id.slice(0, 8),
+      is_approver: !!p.is_approver,
+    })) as AdminOption[];
+  });
+
+export const setAdminApprover = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { user_id: string; is_approver: boolean }) => d)
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("profiles").update({ is_approver: data.is_approver }).eq("id", data.user_id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const getMissionWeek = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { year: number; week: number }) => d)
+  .inputValidator((d: { year: number; week: number; owner_user_id?: string }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabase, userId } = context;
+    const owner = data.owner_user_id ?? userId;
+    const isOwner = owner === userId;
+    const approver = await isApprover(context);
 
-    // find or create
     let { data: weekRow, error: selErr } = await supabase
       .from("mission_weeks")
       .select("*")
       .eq("year", data.year)
       .eq("week", data.week)
+      .eq("owner_user_id", owner)
       .maybeSingle();
     if (selErr) throw new Error(selErr.message);
 
     if (!weekRow) {
+      if (!isOwner) {
+        // viewing another admin's week that doesn't exist yet
+        return {
+          week: null as any,
+          missions: [] as MissionRow[],
+          can_edit: false,
+          can_sign_author: false,
+          can_sign_approver: approver,
+          is_owner: false,
+        };
+      }
       const { data: prof } = await supabase.from("profiles").select("display_name").eq("id", userId).maybeSingle();
       const ins = await supabase
         .from("mission_weeks")
-        .insert({ year: data.year, week: data.week, created_by: userId, created_by_name: prof?.display_name ?? null })
+        .insert({
+          year: data.year, week: data.week, owner_user_id: userId,
+          created_by: userId, created_by_name: prof?.display_name ?? null,
+        })
         .select("*")
         .single();
       if (ins.error) throw new Error(ins.error.message);
@@ -68,8 +123,23 @@ export const getMissionWeek = createServerFn({ method: "POST" })
       .order("created_at", { ascending: true });
     if (mErr) throw new Error(mErr.message);
 
-    return { week: weekRow as WeekRow, missions: (missions ?? []) as MissionRow[] };
+    return {
+      week: weekRow as WeekRow,
+      missions: (missions ?? []) as MissionRow[],
+      can_edit: isOwner && !weekRow.locked,
+      can_sign_author: isOwner && !weekRow.author_signed_at,
+      can_sign_approver: approver && !weekRow.approver_signed_at,
+      is_owner: isOwner,
+    };
   });
+
+async function assertOwner(ctx: { supabase: any; userId: string }, week_id: string) {
+  const { data: w } = await ctx.supabase.from("mission_weeks").select("owner_user_id, locked").eq("id", week_id).maybeSingle();
+  if (!w) throw new Error("שבוע לא נמצא");
+  if (w.owner_user_id !== ctx.userId) throw new Error("רק בעל הלוח יכול לערוך");
+  if (w.locked) throw new Error("השבוע נעול — לא ניתן לערוך");
+  return w;
+}
 
 export const upsertMission = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -77,10 +147,7 @@ export const upsertMission = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabase } = context;
-
-    // block edits when week is locked
-    const { data: w } = await supabase.from("mission_weeks").select("locked").eq("id", data.week_id).maybeSingle();
-    if (w?.locked) throw new Error("השבוע נעול — לא ניתן לערוך");
+    await assertOwner(context, data.week_id);
 
     if (data.id) {
       const { error } = await supabase
@@ -90,7 +157,6 @@ export const upsertMission = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       return { ok: true };
     }
-    // compute next position for that day
     const { data: existing } = await supabase
       .from("missions")
       .select("position")
@@ -117,10 +183,8 @@ export const deleteMission = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabase } = context;
     const { data: row } = await supabase.from("missions").select("week_id").eq("id", data.id).maybeSingle();
-    if (row) {
-      const { data: w } = await supabase.from("mission_weeks").select("locked").eq("id", row.week_id).maybeSingle();
-      if (w?.locked) throw new Error("השבוע נעול");
-    }
+    if (!row) return { ok: true };
+    await assertOwner(context, row.week_id);
     const { error } = await supabase.from("missions").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -131,6 +195,10 @@ export const toggleMissionDone = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; done: boolean }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
+    const { supabase } = context;
+    const { data: row } = await supabase.from("missions").select("week_id").eq("id", data.id).maybeSingle();
+    if (!row) return { ok: true };
+    await assertOwner(context, row.week_id);
     const { error } = await context.supabase.from("missions").update({ done: data.done }).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -141,10 +209,8 @@ export const updateWeekNotes = createServerFn({ method: "POST" })
   .inputValidator((d: { week_id: string; notes: string }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { supabase } = context;
-    const { data: w } = await supabase.from("mission_weeks").select("locked").eq("id", data.week_id).maybeSingle();
-    if (w?.locked) throw new Error("השבוע נעול");
-    const { error } = await supabase.from("mission_weeks").update({ notes: data.notes }).eq("id", data.week_id);
+    await assertOwner(context, data.week_id);
+    const { error } = await context.supabase.from("mission_weeks").update({ notes: data.notes }).eq("id", data.week_id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -158,11 +224,16 @@ export const signMissionWeek = createServerFn({ method: "POST" })
     const name = data.signature_name.trim();
     if (!name) throw new Error("נדרש שם");
 
+    const { data: w } = await supabase.from("mission_weeks").select("owner_user_id, author_signed_at, approver_signed_at").eq("id", data.week_id).maybeSingle();
+    if (!w) throw new Error("שבוע לא נמצא");
+
     const patch: any = {};
     if (data.role === "author") {
+      if (w.owner_user_id !== userId) throw new Error("רק בעל הלוח חותם כרכז");
       patch.author_signed_at = new Date().toISOString();
       patch.author_signature_name = name;
     } else {
+      if (!(await isApprover(context))) throw new Error("רק מנהל מאשר יכול לחתום");
       patch.approver_signed_at = new Date().toISOString();
       patch.approver_signature_name = name;
       patch.approver_user_id = userId;
@@ -187,7 +258,12 @@ export const reopenMissionWeek = createServerFn({ method: "POST" })
   .inputValidator((d: { week_id: string }) => d)
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { error } = await context.supabase
+    const { supabase, userId } = context;
+    const { data: w } = await supabase.from("mission_weeks").select("owner_user_id").eq("id", data.week_id).maybeSingle();
+    if (!w) throw new Error("שבוע לא נמצא");
+    const approver = await isApprover(context);
+    if (w.owner_user_id !== userId && !approver) throw new Error("רק הבעלים או מאשר יכול לפתוח מחדש");
+    const { error } = await supabase
       .from("mission_weeks")
       .update({
         locked: false,
