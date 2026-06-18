@@ -11,13 +11,15 @@ import {
   searchRegisteredUsers,
 } from "@/lib/admin.functions";
 import { listActiveTeams, setUserTeamAdmin } from "@/lib/membership.functions";
+import { setAdminApprover } from "@/lib/missions.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ShieldCheck, Package, User as UserIcon } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, Package, User as UserIcon, Star } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { toast } from "sonner";
 import { useSupabaseSession } from "@/hooks/use-supabase-session";
