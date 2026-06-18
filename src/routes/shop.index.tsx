@@ -17,8 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ShoppingCart, Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
+import { Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
+import { CartBudgetPill } from "@/components/cart-budget-pill";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
