@@ -140,7 +140,14 @@ function Admins() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isAdmin && (
+                      <label className="flex items-center gap-1.5 text-xs bg-muted/60 rounded-full px-2.5 h-9" title="מאשר חתימות שבועיות">
+                        <Star className={`w-3.5 h-3.5 ${a.is_approver ? "text-amber-500 fill-amber-500" : "text-muted-foreground"}`} />
+                        <span>מאשר</span>
+                        <Switch checked={!!a.is_approver} onCheckedChange={(v) => toggleApprover(a.user_id, v)} />
+                      </label>
+                    )}
                     {!isMe && (
                       <Select value={isAdmin ? "admin" : "staff"} onValueChange={(v) => changeRole(a.user_id, v as any)}>
                         <SelectTrigger className="w-36 h-9 text-xs"><SelectValue /></SelectTrigger>
