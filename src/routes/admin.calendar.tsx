@@ -232,6 +232,10 @@ function Calendar() {
 
       {isLoading || !data ? (
         <Card className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></Card>
+      ) : !data.week ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          המנהל לא יצר עדיין תכנית לשבוע זה.
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {days.map((d) => {
@@ -245,7 +249,7 @@ function Calendar() {
                     <div className="font-bold text-sm">{DAY_NAMES[d]}</div>
                     <div className="text-xs text-muted-foreground">{date.toLocaleDateString("he-IL")}</div>
                   </div>
-                  {!locked && (
+                  {canEdit && (
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openCreate(d)}>
                       <Plus className="w-4 h-4" />
                     </Button>
@@ -258,8 +262,9 @@ function Calendar() {
                       <div className="flex items-start gap-2">
                         <button
                           type="button"
-                          onClick={() => toggleDone(m)}
-                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${m.done ? "bg-emerald-600 border-emerald-600" : "border-muted-foreground/40"}`}
+                          onClick={() => canEdit && toggleDone(m)}
+                          disabled={!canEdit}
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${m.done ? "bg-emerald-600 border-emerald-600" : "border-muted-foreground/40"} ${!canEdit ? "cursor-default" : ""}`}
                           aria-label="סמן כבוצע"
                         >
                           {m.done && <CheckCircle2 className="w-3 h-3 text-white" />}
@@ -268,7 +273,7 @@ function Calendar() {
                           <div className={`font-medium ${m.done ? "line-through" : ""}`}>{m.title}</div>
                           {m.details && <div className="text-muted-foreground text-[11px] mt-0.5 whitespace-pre-wrap break-words">{m.details}</div>}
                         </div>
-                        {!locked && (
+                        {canEdit && (
                           <div className="opacity-0 group-hover:opacity-100 transition flex gap-0.5">
                             <button onClick={() => openEdit(m)} className="p-1 text-muted-foreground hover:text-foreground"><Pencil className="w-3 h-3" /></button>
                             <button onClick={() => removeMission(m.id)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3 h-3" /></button>
