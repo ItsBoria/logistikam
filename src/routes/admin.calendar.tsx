@@ -51,15 +51,24 @@ function addWeeks(year: number, week: number, delta: number): { year: number; we
 
 function Calendar() {
   const qc = useQueryClient();
+  const { session } = useSupabaseSession();
+  const myId = session?.user.id ?? "";
   const today = useMemo(() => getISOWeek(new Date()), []);
   const [year, setYear] = useState(today.year);
   const [week, setWeek] = useState(today.week);
   const [showSat, setShowSat] = useState(false);
+  const [ownerId, setOwnerId] = useState<string>("");
+
+  const adminsFn = useServerFn(listCalendarAdmins);
+  const { data: admins } = useQuery({ queryKey: ["calendar-admins"], queryFn: () => adminsFn() });
+
+  useEffect(() => { if (!ownerId && myId) setOwnerId(myId); }, [myId, ownerId]);
 
   const getFn = useServerFn(getMissionWeek);
   const { data, isLoading } = useQuery({
-    queryKey: ["mission-week", year, week],
-    queryFn: () => getFn({ data: { year, week } }),
+    enabled: !!ownerId,
+    queryKey: ["mission-week", year, week, ownerId],
+    queryFn: () => getFn({ data: { year, week, owner_user_id: ownerId } }),
   });
 
   const upsertFn = useServerFn(upsertMission);
@@ -93,6 +102,10 @@ function Calendar() {
   (data?.missions ?? []).forEach((m) => { (grouped[m.day_of_week] ??= []).push(m); });
 
   const locked = !!data?.week?.locked;
+  const canEdit = !!data?.can_edit;
+  const canSignAuthor = !!data?.can_sign_author;
+  const canSignApprover = !!data?.can_sign_approver;
+  const invalidateKey = ["mission-week", year, week, ownerId] as const;
 
   function openCreate(day: number) {
     setEditor({ open: true, day });
