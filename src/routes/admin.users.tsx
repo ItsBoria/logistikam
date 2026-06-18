@@ -40,6 +40,7 @@ function Admins() {
   const searchFn = useServerFn(searchRegisteredUsers);
   const teamsFn = useServerFn(listActiveTeams);
   const setTeamFn = useServerFn(setUserTeamAdmin);
+  const approverFn = useServerFn(setAdminApprover);
 
   const { data: admins } = useQuery({ queryKey: ["admin-users"], queryFn: () => listFn() });
   const { data: teams } = useQuery({ queryKey: ["active-teams-admin"], queryFn: () => teamsFn() });
