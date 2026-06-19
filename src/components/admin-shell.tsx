@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { listActiveTeams, getTeamContextById } from "@/lib/membership.functions";
 import { AdminBottomTabBar } from "@/components/admin-bottom-tab-bar";
 import { LogOut, Loader2, Eye } from "lucide-react";
+import { useHideOnScroll } from "@/hooks/use-scroll-direction";
 
 export function AdminShell({
   children,
@@ -64,9 +65,20 @@ export function AdminShell({
     );
   }
 
+  return <AdminShellInner session={session} roles={roles}>{children}</AdminShellInner>;
+}
+
+function AdminShellInner({ session, roles, children }: { session: any; roles: any; children: ReactNode }) {
+  const navigate = useNavigate();
+  const hidden = useHideOnScroll();
   return (
     <div className="min-h-screen bg-secondary/30">
-      <header className="bg-card/80 backdrop-blur border-b sticky top-0 z-30">
+      <header
+        className={[
+          "bg-card/80 backdrop-blur border-b sticky top-0 z-30 transition-transform duration-300 ease-out",
+          hidden ? "-translate-y-full" : "translate-y-0",
+        ].join(" ")}
+      >
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <Link to="/admin" className="font-semibold text-sm tracking-tight">
             {roles.isAdmin ? "ניהול" : "מחסן"}

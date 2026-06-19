@@ -80,6 +80,41 @@ export type Database = {
         }
         Relationships: []
       }
+      mission_day_notes: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          influencers: string
+          updated_at: string
+          week_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          influencers?: string
+          updated_at?: string
+          week_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          influencers?: string
+          updated_at?: string
+          week_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mission_day_notes_week_id_fkey"
+            columns: ["week_id"]
+            isOneToOne: false
+            referencedRelation: "mission_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mission_weeks: {
         Row: {
           approver_signature_name: string | null
@@ -136,39 +171,58 @@ export type Database = {
       }
       missions: {
         Row: {
+          carried_from_id: string | null
           created_at: string
           day_of_week: number
           details: string | null
           done: boolean
+          due_time: string | null
           id: string
           position: number
+          reminder_at: string | null
+          reminder_sent_at: string | null
           title: string
           updated_at: string
           week_id: string
         }
         Insert: {
+          carried_from_id?: string | null
           created_at?: string
           day_of_week: number
           details?: string | null
           done?: boolean
+          due_time?: string | null
           id?: string
           position?: number
+          reminder_at?: string | null
+          reminder_sent_at?: string | null
           title: string
           updated_at?: string
           week_id: string
         }
         Update: {
+          carried_from_id?: string | null
           created_at?: string
           day_of_week?: number
           details?: string | null
           done?: boolean
+          due_time?: string | null
           id?: string
           position?: number
+          reminder_at?: string | null
+          reminder_sent_at?: string | null
           title?: string
           updated_at?: string
           week_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "missions_carried_from_id_fkey"
+            columns: ["carried_from_id"]
+            isOneToOne: false
+            referencedRelation: "missions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "missions_week_id_fkey"
             columns: ["week_id"]

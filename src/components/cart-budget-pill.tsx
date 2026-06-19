@@ -12,10 +12,10 @@ type Props = {
 
 export function CartBudgetPill({ itemCount, total, spent, limit, willExceed, onOpen }: Props) {
   const hasLimit = limit > 0;
-  const used = hasLimit ? Math.min(1, (spent + total) / limit) : 0;
-  const remaining = hasLimit ? Math.max(0, limit - spent - total) : 0;
+  const projected = spent + total;
+  const used = hasLimit ? Math.min(1, projected / limit) : 0;
+  const remaining = hasLimit ? Math.max(0, limit - projected) : 0;
 
-  // SVG ring
   const size = 38;
   const stroke = 4;
   const r = (size - stroke) / 2;
@@ -83,15 +83,18 @@ export function CartBudgetPill({ itemCount, total, spent, limit, willExceed, onO
 
         <div className="text-right leading-tight">
           <div className="font-semibold text-sm tabular-nums">{formatCurrency(total)}</div>
-          <div className={`text-[10px] ${willExceed ? "text-destructive" : "text-muted-foreground"}`}>
-            {hasLimit
-              ? willExceed
-                ? "חורג מהמסגרת"
-                : `נותר ${formatCurrency(remaining)}`
-              : itemCount > 0
-              ? `${itemCount} פריטים בסל`
-              : "הסל ריק"}
-          </div>
+          {hasLimit ? (
+            <div className={`text-[10px] tabular-nums ${willExceed ? "text-destructive" : "text-muted-foreground"}`}>
+              <span>{formatCurrency(projected)}</span>
+              <span className="opacity-60"> / {formatCurrency(limit)}</span>
+              <span className="mx-1">·</span>
+              {willExceed ? "חורג" : `נותר ${formatCurrency(remaining)}`}
+            </div>
+          ) : (
+            <div className="text-[10px] text-muted-foreground">
+              {itemCount > 0 ? `${itemCount} פריטים בסל` : "הסל ריק"}
+            </div>
+          )}
         </div>
       </button>
     </div>

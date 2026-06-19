@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { PageTransition } from "@/components/page-transition";
 
 function NotFoundComponent() {
   return (
@@ -97,7 +98,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthSync />
-      <Outlet />
+      <PageTransition>
+        <Outlet />
+      </PageTransition>
       <Toaster position="top-center" richColors dir="rtl" />
     </QueryClientProvider>
   );

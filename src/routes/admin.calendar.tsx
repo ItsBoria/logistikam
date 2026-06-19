@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronRight, ChevronLeft, Plus, Trash2, Pencil, Loader2, FileText, FileType,
-  Lock, Unlock, CheckCircle2,
+  Lock, Unlock, CheckCircle2, Clock, Bell, ArrowRightCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   getMissionWeek, upsertMission, deleteMission, toggleMissionDone,
   updateWeekNotes, signMissionWeek, reopenMissionWeek, listCalendarAdmins,
+  upsertDayNote, carryUnfinishedToNextWeek,
   type MissionRow,
 } from "@/lib/missions.functions";
 import { downloadWeeklyPDF, downloadWeeklyDOCX, isoWeekToRange } from "@/lib/weekly-export";
@@ -45,8 +46,12 @@ function getISOWeek(date: Date): { year: number; week: number } {
 function addWeeks(year: number, week: number, delta: number): { year: number; week: number } {
   const range = isoWeekToRange(year, week);
   const moved = new Date(range.start);
-  moved.setUTCDate(moved.getUTCDate() + delta * 7 + 1); // +1 so we land mid-week
+  moved.setUTCDate(moved.getUTCDate() + delta * 7 + 1);
   return getISOWeek(moved);
+}
+
+function fmtDateInput(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 function Calendar() {
@@ -77,10 +82,14 @@ function Calendar() {
   const notesFn = useServerFn(updateWeekNotes);
   const signFn = useServerFn(signMissionWeek);
   const reopenFn = useServerFn(reopenMissionWeek);
+  const dayNoteFn = useServerFn(upsertDayNote);
+  const carryFn = useServerFn(carryUnfinishedToNextWeek);
 
   const [editor, setEditor] = useState<{ open: boolean; day: number; mission?: MissionRow }>({ open: false, day: 0 });
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
+  const [dueTime, setDueTime] = useState("");
+  const [reminderAt, setReminderAt] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [notesDraft, setNotesDraft] = useState("");
@@ -89,12 +98,49 @@ function Calendar() {
   const [authorName, setAuthorName] = useState("");
   const [approverName, setApproverName] = useState("");
 
+  // Local day-notes editing (debounced auto-save)
+  const [dayNotes, setDayNotes] = useState<Record<number, string>>({});
+  const dayNoteTimers = useRef<Record<number, any>>({});
+
   useEffect(() => {
     if (data?.week) {
       setNotesDraft(data.week.notes ?? "");
       setNotesDirty(false);
     }
-  }, [data?.week?.id, data?.week?.notes]);
+    if (data?.day_notes) {
+      const map: Record<number, string> = {};
+      for (const n of data.day_notes) map[n.day_of_week] = n.influencers;
+      setDayNotes(map);
+    }
+  }, [data?.week?.id]);
+
+  // ---- In-app reminder notifications (while the calendar is open) ----
+  const firedReminders = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!data?.missions) return;
+    if (typeof window === "undefined") return;
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+    const i = setInterval(() => {
+      const now = Date.now();
+      for (const m of data.missions) {
+        if (!m.reminder_at || m.done) continue;
+        if (firedReminders.current.has(m.id)) continue;
+        const t = new Date(m.reminder_at).getTime();
+        if (t <= now && now - t < 60_000 * 60) {
+          firedReminders.current.add(m.id);
+          toast.info(`תזכורת: ${m.title}`, { description: m.details ?? undefined });
+          try {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification(`תזכורת: ${m.title}`, { body: m.details ?? "" });
+            }
+          } catch {}
+        }
+      }
+    }, 30_000);
+    return () => clearInterval(i);
+  }, [data?.missions]);
 
   const range = useMemo(() => isoWeekToRange(year, week), [year, week]);
   const days = showSat ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4, 5];
@@ -106,14 +152,18 @@ function Calendar() {
   const canSignAuthor = !!data?.can_sign_author;
   const canSignApprover = !!data?.can_sign_approver;
   const invalidateKey = ["mission-week", year, week, ownerId] as const;
+  const unfinishedCount = (data?.missions ?? []).filter((m) => !m.done).length;
 
   function openCreate(day: number) {
     setEditor({ open: true, day });
-    setTitle(""); setDetails("");
+    setTitle(""); setDetails(""); setDueTime(""); setReminderAt("");
   }
   function openEdit(m: MissionRow) {
     setEditor({ open: true, day: m.day_of_week, mission: m });
-    setTitle(m.title); setDetails(m.details ?? "");
+    setTitle(m.title);
+    setDetails(m.details ?? "");
+    setDueTime(m.due_time ? m.due_time.slice(0, 5) : "");
+    setReminderAt(m.reminder_at ? new Date(m.reminder_at).toISOString().slice(0, 16) : "");
   }
   async function saveMission() {
     if (!data?.week || !title.trim()) return;
@@ -122,6 +172,8 @@ function Calendar() {
       await upsertFn({ data: {
         id: editor.mission?.id, week_id: data.week.id, day_of_week: editor.day,
         title: title.trim(), details: details.trim() || null,
+        due_time: dueTime || null,
+        reminder_at: reminderAt ? new Date(reminderAt).toISOString() : null,
       }});
       setEditor({ open: false, day: 0 });
       qc.invalidateQueries({ queryKey: invalidateKey });
@@ -141,6 +193,15 @@ function Calendar() {
     try { await notesFn({ data: { week_id: data.week.id, notes: notesDraft } }); setNotesDirty(false); toast.success("נשמר"); }
     catch (e: any) { toast.error(e.message); }
   }
+  function onDayNoteChange(d: number, value: string) {
+    setDayNotes((m) => ({ ...m, [d]: value }));
+    if (!data?.week || !canEdit) return;
+    if (dayNoteTimers.current[d]) clearTimeout(dayNoteTimers.current[d]);
+    dayNoteTimers.current[d] = setTimeout(async () => {
+      try { await dayNoteFn({ data: { week_id: data.week.id, day_of_week: d, influencers: value } }); }
+      catch (e: any) { toast.error(e.message); }
+    }, 700);
+  }
   async function sign(role: "author" | "approver") {
     if (!data?.week) return;
     const name = (role === "author" ? authorName : approverName).trim();
@@ -156,14 +217,25 @@ function Calendar() {
     try { await reopenFn({ data: { week_id: data.week.id } }); qc.invalidateQueries({ queryKey: invalidateKey }); }
     catch (e: any) { toast.error(e.message); }
   }
+  async function carry() {
+    if (!data?.week) return;
+    if (!confirm(`להעביר ${unfinishedCount} משימות לא הושלמו לשבוע הבא?`)) return;
+    try {
+      const res: any = await carryFn({ data: { week_id: data.week.id } });
+      qc.invalidateQueries({ queryKey: invalidateKey });
+      toast.success(`הועברו ${res.moved} משימות לשבוע הבא`);
+    } catch (e: any) { toast.error(e.message); }
+  }
 
   async function exportPdf() {
     if (!data?.week) return;
-    try { await downloadWeeklyPDF(data.week, data.missions); } catch (e: any) { toast.error(e.message); }
+    try { await downloadWeeklyPDF(data.week, data.missions, data.day_notes ?? []); }
+    catch (e: any) { toast.error(e.message); }
   }
   async function exportDocx() {
     if (!data?.week) return;
-    try { await downloadWeeklyDOCX(data.week, data.missions); } catch (e: any) { toast.error(e.message); }
+    try { await downloadWeeklyDOCX(data.week, data.missions, data.day_notes ?? []); }
+    catch (e: any) { toast.error(e.message); }
   }
 
   function step(delta: number) {
@@ -204,6 +276,11 @@ function Calendar() {
           <Button variant="outline" size="sm" onClick={() => setShowSat((v) => !v)}>
             {showSat ? "הסתר שבת" : "הצג שבת"}
           </Button>
+          {canEdit && unfinishedCount > 0 && (
+            <Button variant="outline" size="sm" onClick={carry} title="העבר משימות שלא הושלמו לשבוע הבא">
+              <ArrowRightCircle className="w-4 h-4 ml-1" />העבר לשבוע הבא ({unfinishedCount})
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" disabled={!data?.week}><FileText className="w-4 h-4 ml-1" />ייצוא</Button>
@@ -255,8 +332,19 @@ function Calendar() {
                     </Button>
                   )}
                 </div>
+                <div>
+                  <label className="text-[10px] font-medium text-muted-foreground/80">גורמים משפיעים</label>
+                  <Textarea
+                    rows={2}
+                    value={dayNotes[d] ?? ""}
+                    disabled={!canEdit}
+                    onChange={(e) => onDayNoteChange(d, e.target.value)}
+                    placeholder="..."
+                    className="text-[11px] min-h-[40px] resize-none"
+                  />
+                </div>
                 <div className="space-y-1.5">
-                  {list.length === 0 && <div className="text-xs text-muted-foreground/70 py-4 text-center">אין משימות</div>}
+                  {list.length === 0 && <div className="text-xs text-muted-foreground/70 py-2 text-center">אין משימות</div>}
                   {list.map((m) => (
                     <div key={m.id} className={`group rounded-md p-2 text-xs border bg-card ${m.done ? "opacity-60" : ""}`}>
                       <div className="flex items-start gap-2">
@@ -271,6 +359,11 @@ function Calendar() {
                         </button>
                         <div className="flex-1 min-w-0">
                           <div className={`font-medium ${m.done ? "line-through" : ""}`}>{m.title}</div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                            {m.due_time && (<span className="inline-flex items-center gap-0.5"><Clock className="w-3 h-3" />{m.due_time.slice(0,5)}</span>)}
+                            {m.reminder_at && (<span className="inline-flex items-center gap-0.5"><Bell className="w-3 h-3" />{new Date(m.reminder_at).toLocaleString("he-IL", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" })}</span>)}
+                            {m.carried_from_id && (<span className="inline-flex items-center gap-0.5 text-amber-600"><ArrowRightCircle className="w-3 h-3" />הועבר</span>)}
+                          </div>
                           {m.details && <div className="text-muted-foreground text-[11px] mt-0.5 whitespace-pre-wrap break-words">{m.details}</div>}
                         </div>
                         {canEdit && (
@@ -349,7 +442,28 @@ function Calendar() {
           <DialogHeader><DialogTitle>{editor.mission ? "עריכת משימה" : `משימה חדשה · ${DAY_NAMES[editor.day]}`}</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="כותרת המשימה" autoFocus />
-            <Textarea value={details} onChange={(e) => setDetails(e.target.value)} placeholder="פרטים (אופציונלי)" rows={4} />
+            <Textarea value={details} onChange={(e) => setDetails(e.target.value)} placeholder="פרטים (אופציונלי)" rows={3} />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="text-muted-foreground inline-flex items-center gap-1"><Clock className="w-3 h-3" />שעה</span>
+                <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} dir="ltr" />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="text-muted-foreground inline-flex items-center gap-1"><Bell className="w-3 h-3" />תזכורת</span>
+                <Input type="datetime-local" value={reminderAt} onChange={(e) => setReminderAt(e.target.value)} dir="ltr" />
+              </label>
+            </div>
+            {editor.mission && (
+              <label className="flex items-center gap-2 text-sm pt-1">
+                <input
+                  type="checkbox"
+                  checked={!!editor.mission?.done}
+                  onChange={() => editor.mission && toggleDone(editor.mission)}
+                  className="w-4 h-4"
+                />
+                סמן כבוצע
+              </label>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditor({ open: false, day: 0 })}>ביטול</Button>

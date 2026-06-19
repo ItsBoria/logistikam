@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Plus, Minus, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { CartBudgetPill } from "@/components/cart-budget-pill";
+import { useHideOnScroll } from "@/hooks/use-scroll-direction";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/shop/")({
@@ -34,6 +35,7 @@ type CartMap = Record<string, number>;
 function Shop() {
   const navigate = useNavigate();
   const session = typeof window !== "undefined" ? getTeamSession() : null;
+  const hidden = useHideOnScroll();
   useEffect(() => { if (!session) navigate({ to: "/", replace: true }); }, [session, navigate]);
 
   const fetchShop = useServerFn(getShopData);
@@ -142,7 +144,10 @@ function Shop() {
   return (
     <div className="min-h-screen bg-secondary/30">
       <AdminActingBanner />
-      <header className="bg-card/80 border-b sticky top-0 z-30 backdrop-blur">
+      <header className={[
+        "bg-card/80 border-b sticky top-0 z-30 backdrop-blur transition-transform duration-300 ease-out",
+        hidden ? "-translate-y-full" : "translate-y-0",
+      ].join(" ")}>
         <div className="max-w-3xl mx-auto px-4 pt-4 pb-3 text-center">
           <BrandLogo size={48} className="mx-auto mb-1.5 rounded-2xl drop-shadow" />
           <h1 className="text-lg font-bold tracking-tight">{data?.team.name ?? "ברוכים הבאים"}</h1>
