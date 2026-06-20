@@ -47,15 +47,15 @@ function PillBase({
   tone?: PillTone;
 }) {
   const appearance = tone === "error"
-    ? "bg-destructive/12 text-destructive ring-1 ring-destructive/35"
+    ? "bg-destructive/10 text-destructive ring-1 ring-destructive/35"
     : tone === "warning"
       ? "bg-warning/20 text-warning-foreground ring-1 ring-warning/30"
       : active
-        ? "bg-primary text-primary-foreground shadow-sm px-3.5"
+        ? "bg-primary text-primary-foreground shadow-sm sm:px-3.5"
         : "text-muted-foreground hover:text-foreground hover:bg-muted";
   const cls = [
-    "group relative flex items-center justify-center gap-2 rounded-full transition-all",
-    "h-11 px-3 min-w-11",
+    "group relative flex items-center justify-center gap-1.5 sm:gap-2 rounded-full transition-all",
+    "h-11 px-2 min-w-10 sm:px-3 sm:min-w-11",
     appearance,
   ].join(" ");
   if (to) return <Link to={to as any} className={cls} aria-label={ariaLabel}>{children}</Link>;
@@ -66,7 +66,7 @@ function StorePill({ active }: { active: boolean }) {
   return (
     <PillBase active={active} to="/shop" ariaLabel="חנות">
       <Home className="w-5 h-5 shrink-0" />
-      <span className="text-xs font-medium whitespace-nowrap">חנות</span>
+      <span className="hidden text-xs font-medium whitespace-nowrap sm:inline">חנות</span>
     </PillBase>
   );
 }
@@ -121,18 +121,18 @@ function CartPill({ pin }: { pin: string }) {
   return (
     <PillBase active={hasCart} tone={tone} onClick={openCheckout} ariaLabel={ariaLabel}>
       <span key={bumpKey} className="relative inline-flex animate-in zoom-in-95 duration-200">
-        <ShoppingCart className="w-5 h-5 shrink-0" />
+        <ShoppingCart className="h-[18px] w-[18px] shrink-0 sm:h-5 sm:w-5" />
       </span>
       <span className="flex min-w-0 flex-col items-start leading-tight">
         <span className="hidden text-xs font-medium tabular-nums whitespace-nowrap sm:inline">
           {itemCount} פריטים · {formatPillCurrency(cartTotal)}
         </span>
-        <span className="text-xs font-medium tabular-nums whitespace-nowrap sm:hidden">
+        <span className="text-[11px] font-medium tabular-nums whitespace-nowrap sm:hidden">
           סל · {itemCount} · {formatPillCurrency(cartTotal)}
         </span>
         {hasBudget ? (
           <span className={[
-            "text-[10px] tabular-nums whitespace-nowrap",
+            "text-[9px] sm:text-[10px] tabular-nums whitespace-nowrap",
             tone === "normal" && hasCart ? "text-primary-foreground/80" : "opacity-80",
           ].join(" ")}>
             {isOverBudget ? (
@@ -149,7 +149,7 @@ function CartPill({ pin }: { pin: string }) {
           </span>
         ) : (
           <span className={[
-            "text-[10px] whitespace-nowrap",
+            "text-[9px] sm:text-[10px] whitespace-nowrap",
             hasCart ? "text-primary-foreground/80" : "text-muted-foreground",
           ].join(" ")}>
             ללא מסגרת תקציב
@@ -165,7 +165,7 @@ function Tab({ item, active }: { item: Item; active: boolean }) {
   return (
     <PillBase active={active} to={item.to} ariaLabel={item.label}>
       <Icon className="w-5 h-5 shrink-0" />
-      <span className={["text-xs font-medium whitespace-nowrap", active ? "inline" : "hidden md:group-hover:inline"].join(" ")}>
+      <span className={["text-xs font-medium whitespace-nowrap", active ? "hidden sm:inline" : "hidden md:group-hover:inline"].join(" ")}>
         {item.label}
       </span>
     </PillBase>
@@ -186,10 +186,10 @@ export function BottomTabBar({ pin }: { pin?: string }) {
   return (
     <>
       <div className="h-24" aria-hidden />
-      <div className="fixed bottom-0 inset-x-0 z-40 pb-[max(env(safe-area-inset-bottom),16px)] px-4 pointer-events-none">
+      <div className="fixed bottom-0 inset-x-0 z-40 pb-[max(env(safe-area-inset-bottom),16px)] px-3 sm:px-4 pointer-events-none">
         <nav
           className={[
-            "pointer-events-auto mx-auto w-fit max-w-[calc(100vw-2rem)]",
+            "pointer-events-auto mx-auto w-fit max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-2rem)]",
             "flex items-center gap-1 p-1.5 rounded-full",
             "bg-card/90 backdrop-blur-xl border shadow-lg",
           ].join(" ")}
@@ -201,7 +201,7 @@ export function BottomTabBar({ pin }: { pin?: string }) {
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <button
-                className="group flex items-center justify-center gap-2 rounded-full transition-all h-11 px-3 min-w-11 text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="group flex h-11 min-w-10 items-center justify-center gap-2 rounded-full px-2 text-muted-foreground transition-all hover:bg-muted hover:text-foreground sm:min-w-11 sm:px-3"
                 aria-label="עוד"
                 type="button"
               >
