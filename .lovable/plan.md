@@ -1,48 +1,72 @@
-## Plan
+## 1. Inline budget & cart inside the navigation pills
 
-### 1. Cart/Budget pill — show budget inline
-Update `src/components/cart-budget-pill.tsx`: add a third text line (or a compact "₪X / ₪Y" format) inside the pill showing current spent + total budget limit alongside the existing cart total. Stays reactive via existing props.
+**Remove** the floating `CartBudgetPill` (`src/components/cart-budget-pill.tsx`) from `src/routes/shop.index.tsx`. Delete its usage entirely — no floating cart/budget element remains.
 
-### 2. Auto-hide top header on scroll
-Create `src/hooks/use-scroll-direction.ts` returning a `hidden` boolean (hidden when scrolling down past ~40px, shown when scrolling up). Apply to the shop header in `src/routes/shop.index.tsx` (and admin header in `src/components/admin-shell.tsx`) via a `translate-y-[-100%]` + `transition-transform duration-300` class on the sticky header wrapper.
+**Cart context** — new `src/lib/cart-context.tsx`:
+- React context holding `cart: Record<string, number>` + `setCart` persisted to `sessionStorage` (per-PIN key `cart:<pin>`).
+- Exposes `useCart()` returning `{ cart, setQty, clear, itemCount, total, products }`.
+- Wraps shop routes (provider mounted in `src/routes/shop.route.tsx` if exists, otherwise inside `__root.tsx` gated by pathname starting with `/shop`).
+- Shop page uses `useCart()` instead of local `useState<CartMap>` so the cart survives tab switches and feeds the nav pill.
+- Also exposes `useShopBudget()` reading the same `getShopData` query (shared queryKey `["shop", pin]`) so the pill and the shop screen share cache — no extra fetch.
 
-### 3. Persistent tab navigation with page transitions
-TanStack Router remounts route components on navigation — true keep-alive is not natively supported. Approach:
-- Add a `<PageTransition>` wrapper (framer-motion `AnimatePresence` + `motion.div` with fade/slide-x) inside `__root.tsx` around `<Outlet />`, keyed by pathname.
-- For shop tabs (`/shop`, `/shop/orders`, `/shop/replacements`) keep data fresh via React Query cache (already in place) so re-mounts are instant with no network reload.
-- Result: smooth slide animation, no full page reload, cached data → feels native.
+**`src/components/bottom-tab-bar.tsx`** — extend the `Tab` rendering for `/shop` (store) and add a new Cart pill:
+- Store pill: under the label show `נותר ₪2,450` (mobile shortens to `₪2.4K` via a `formatShort` helper). Smaller text (`text-[10px] opacity-80`), no badge.
+- Cart pill (new entry replacing nothing — added between Store and Replacements): icon `ShoppingCart`, label `סל`, subtitle `3 · ₪420` when non-empty, `0` when empty. Tapping opens checkout dialog (lift `setCheckout` via context event or navigate to `/shop?checkout=1`).
+- Active state still highlights the route; pill grows only when active (label visible). Inactive pills on mobile keep just the icon + tiny count badge to avoid overflow.
+- Two-line layout: icon on top row with label, secondary number on second line, using `flex-col` only when active or when value present; otherwise icon-only to keep bar compact.
+- Use `tabular-nums`, `formatCurrency` from `@/lib/pricing`, new `formatCurrencyShort` helper for mobile (`< 640px`) via Tailwind `sm:` variants — render both spans and toggle visibility, no JS breakpoint.
 
-### 4. Calendar PDF export — match the uploaded paper format
-Rewrite `src/lib/weekly-export.ts` PDF generator to mirror the reference sheet:
-- Landscape A4, RTL column order (Sunday on the right).
-- Top: logo + title "תוכנית עבודה שבועית" + "שבוע N | חודש YYYY".
-- Grid header row per day with date, then two sub-columns "תיכנון" / "ביצוע".
-- Left-side category rows (RTL: rightmost cell): גורמים משפיעים, חופשות/קורסים, ספירות, אפסנאות, תחמושת (configurable categories — start with these defaults from the image).
-- Bottom: two signature blocks — "חתימת מנהל אתר אחסון" and "חתימת מנהל עבודה" with שם מלא / מ.א / דרגה / חתימה / תאריך.
-- Fix Hebrew direction: use `pdf.text(str, x, y, { align: "right", isInputRtl: true })` with the Heebo font already embedded. Replace any backwards rendering.
+**Budget reactivity**: after `placeOrder` success in shop page call `queryClient.invalidateQueries(["shop", pin])` (already partially done via `refetch`) — the pill reads same query so it updates automatically. Same when admin adjusts budget elsewhere (already invalidates).
 
-### 5. Missions — add date, time, status, reminders
-Schema migration on `missions`:
-- Add `due_date date` (already implied by day_of_week+week), `due_time time`, `reminder_at timestamptz`, keep existing `done bool`.
-- Update `upsertMission` server fn + editor dialog in `admin.calendar.tsx` to accept time + reminder fields.
-- UI: time chip on mission card, checkbox already exists, clear "סמן כבוצע / בוטל" button.
-- Reminders: use existing web-push infra (`push.functions.ts`) — add a server-side scheduled check (pg_cron calling a public endpoint `/api/public/mission-reminders`) that sends push to the owner when `reminder_at <= now()` and not yet sent. Add `reminder_sent_at` column.
+## 2. Header & navigation cleanup
 
-### 6. Carry unfinished missions to next week
-Add server fn `carryUnfinishedToNextWeek({ week_id })`:
-- Finds missions where `done=false` for that week.
-- Creates/loads next week's `mission_weeks` row for same owner.
-- Inserts copies with same title/details/time, `day_of_week` mapped (default Sunday), preserves original mission id reference via new `carried_from_id` column.
-UI in `admin.calendar.tsx`: when viewing a past/current week with unfinished items, show a "העבר משימות לא הושלמו לשבוע הבא" button → confirm dialog → call fn → toast.
+- Keep auto-hide-on-scroll header (already implemented).
+- Remove duplicate "warning banner" budget info in header when the pill already shows projected/remaining; keep only the critical "חורג" badge.
+- Ensure pill bar uses consistent sizing (`h-12`), shared `Tab` component for all variants.
+- Add `framer-motion` `layout` prop on active pill so width animates smoothly when label appears.
+- Remove `<div className="h-24" />` spacer duplication — keep single spacer at bottom equal to nav height + safe-area.
 
-### 7. Daily "גורמים משפיעים" field per day
-New table `mission_day_notes (week_id, day_of_week, influencers text, created_at, updated_at)` with unique (week_id, day_of_week). RLS mirrors `missions`.
-- Server fns `getDayNotes(week_id)` (returns map) and `upsertDayNote({week_id, day_of_week, influencers})`.
-- In calendar UI add a small textarea under each day header labeled "גורמים משפיעים" with debounced auto-save (disabled when locked / not owner).
-- Include the influencers row in the PDF export per day.
+## 3. UX polish
 
-### Technical details
-- Files created: `src/hooks/use-scroll-direction.ts`, `src/components/page-transition.tsx`, new migration for `missions` (time/reminder/carried_from) + `mission_day_notes` table + GRANTs + RLS, optional `src/routes/api/public/mission-reminders.ts`.
-- Files edited: `cart-budget-pill.tsx`, `shop.index.tsx`, `admin-shell.tsx`, `__root.tsx`, `weekly-export.ts`, `missions.functions.ts`, `admin.calendar.tsx`, `integrations/supabase/types.ts` (auto-regen).
-- Hebrew RTL in jsPDF: pass `{ align: "right", isInputRtl: true }` to every `pdf.text` and reverse column iteration order so the visual layout reads right-to-left.
-- Push reminders need pg_cron; if not desired, fall back to client-side `Notification` API while the app is open.
+- Add-to-cart feedback: in shop card, when `setQty` increases, trigger a tiny `motion.div` scale bump on the Cart pill (via context event emitter `cartBumpRef`).
+- Disable "אישור ושליחת הזמנה" when `willExceed && !approvalAllowed` with tooltip "חריגה מהתקציב — דרוש אישור מנהל" (current flow already requires approval — keep submission allowed but show clearer copy).
+- Show "נותר אחרי סל: ₪X" line inside the checkout dialog.
+- Skeleton: replace the full-screen `Loader2` with a lightweight grid skeleton (6 placeholder cards) in shop while loading.
+- Toasts already via `sonner` — keep concise.
+
+## 4. PDF Hebrew/RTL fix
+
+Current PDF uses `jsPDF` with `isInputRtl: true`. jsPDF's bidi support is unreliable for mixed Hebrew/digits and is the root cause of reversed output in the saved file. Switch the PDF path to **pdfmake** with the Heebo TTF and proper `rtl` paragraph property, OR use **pdf-lib + @pdf-lib/fontkit** with manual bidi via `bidi-js`.
+
+Chosen approach: **pdfmake** (smallest change, supports `alignment: 'right'` and a doc-level `rtl: true` extension via `defaultStyle.alignment`).
+- Add deps: `pdfmake`, `bidi-js` (for shaping if needed).
+- New `src/lib/pdf-rtl.ts`: registers Heebo font with pdfmake VFS, exposes `createRtlPdf(docDef)`.
+- Rewrite `downloadWeeklyPDF` in `src/lib/weekly-export.ts` to build a pdfmake `TableLayout` with columns in logical order and `layout: { defaultBorder: true }`, set `pageOrientation: 'landscape'`, every text node carries `alignment: 'right'`, `font: 'Heebo'`, and uses pdfmake's built-in bidi (handles Hebrew + Latin/digits correctly without manual reversal).
+- Column visual RTL: pdfmake renders LTR by default; we reverse the day cells array so Sunday is on the right visually, while keeping label column at the far right via `[labelCell, ...daysReversed]` then `alignment: 'right'` on the table widths.
+- All titles, mission text, notes, day headers, "גורמים משפיעים" rendered via pdfmake `text` nodes — no manual string reversal anywhere.
+- DOCX already uses `bidirectional: true` + `rightToLeft: true` correctly — keep as is but verify Heebo/Arial Hebrew font; switch font to `David` or keep `Arial` (Word substitutes a Hebrew-capable face). No change required beyond confirming output.
+- Verification: after build, open `/admin/calendar`, export PDF, inspect with `pdftotext` and `pdftoppm` rendering to confirm correct order.
+
+## 5. Files
+
+**New**
+- `src/lib/cart-context.tsx`
+- `src/lib/pdf-rtl.ts`
+- `src/lib/format-currency-short.ts` (or extend `src/lib/pricing.ts`)
+- `src/components/shop-skeleton.tsx`
+
+**Edited**
+- `src/components/bottom-tab-bar.tsx` — add Store-with-budget and Cart pills
+- `src/routes/shop.index.tsx` — drop `CartBudgetPill`, consume `useCart`, wrap in provider (or do at route layout), checkout dialog tweaks
+- `src/routes/__root.tsx` or new `src/routes/shop.route.tsx` — mount `CartProvider` for `/shop/*`
+- `src/lib/weekly-export.ts` — rewrite PDF using pdfmake; keep DOCX
+- `src/lib/pricing.ts` — add `formatCurrencyShort`
+- `package.json` / `bun.lock` — add `pdfmake`
+
+**Deleted**
+- `src/components/cart-budget-pill.tsx`
+
+## 6. Acceptance verification
+- Manual: cart count + budget visible in pills; navigating to `/shop/orders` and back preserves cart; placing an order updates budget instantly.
+- PDF: open exported file in a PDF viewer (and via `pdftoppm` in CI) — Hebrew reads right-to-left with correct word/punctuation/digit order.
+- No floating cart/budget element exists in the DOM.
