@@ -77,9 +77,7 @@ function Shop() {
       if (prefill) {
         sessionStorage.removeItem(prefillKey);
         const items: Array<{ product_id: string; quantity: number }> = JSON.parse(prefill);
-        const next: CartMap = {};
-        for (const it of items) next[it.product_id] = it.quantity;
-        setCart(next);
+        for (const it of items) setQty(it.product_id, it.quantity);
       }
     } catch {}
   }, [session?.pin]);
