@@ -1,12 +1,39 @@
-// Weekly mission plan export — PDF (jsPDF + Heebo, manual RTL layout) and DOCX.
+// Weekly mission plan export — PDF (jsPDF + Heebo, bidi-js for RTL) and DOCX.
 import jsPDF from "jspdf";
 import { saveAs } from "file-saver";
+import bidiFactory from "bidi-js";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, HeadingLevel, BorderStyle, WidthType, ShadingType,
 } from "docx";
 import { attachHeebo } from "./pdf-fonts";
 import type { MissionRow, WeekRow, DayNoteRow } from "./missions.functions";
+
+const bidi = bidiFactory();
+
+// Compute visual (display) order from logical text, using the Unicode Bidi Algorithm.
+// jsPDF draws text as-is, so we must hand it text already in visual order for RTL.
+function toVisual(str: string): string {
+  if (!str) return str;
+  // Process line by line — bidi-js operates per paragraph.
+  return str.split("\n").map((line) => {
+    if (!line) return line;
+    const levels = bidi.getEmbeddingLevels(line, "rtl");
+    const segments = bidi.getReorderSegments(line, levels);
+    let chars = line.split("");
+    for (const seg of segments) {
+      const [start, end] = seg;
+      const slice = chars.slice(start, end + 1).reverse();
+      // Mirror brackets/parens
+      for (let i = 0; i < slice.length; i++) {
+        const m = bidi.getMirroredCharacter(slice[i]);
+        if (m) slice[i] = m;
+      }
+      chars.splice(start, end - start + 1, ...slice);
+    }
+    return chars.join("");
+  }).join("\n");
+}
 
 const DAY_NAMES_SHORT = ["יום א'", "יום ב'", "יום ג'", "יום ד'", "יום ה'", "יום ו'", "יום ש'"];
 const HEB_MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני", "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
