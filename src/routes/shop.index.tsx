@@ -112,10 +112,15 @@ function Shop() {
 
   const limit = Number(data?.team.monthly_limit ?? 0);
   const spent = Number(data?.spent ?? 0);
-  const remaining = limit > 0 ? limit - spent : Infinity;
-  const willExceed = limit > 0 && (spent + total) > limit;
+  const remainingAfterCart = limit > 0 ? limit - spent - total : Infinity;
+  const willExceed = limit > 0 && remainingAfterCart < 0;
+  const exceededBy = willExceed ? Math.abs(remainingAfterCart) : 0;
 
   async function submitOrder() {
+    if (willExceed) {
+      toast.error(`הסל חורג מהתקציב ב-${formatCurrency(exceededBy)}`);
+      return;
+    }
     if (!phone || !name) { toast.error("יש למלא שם וטלפון"); return; }
     setPlacing(true);
     try {
@@ -153,15 +158,6 @@ function Shop() {
           <h1 className="text-lg font-bold tracking-tight">{data?.team.name ?? "ברוכים הבאים"}</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5">מה תרצו להזמין היום?</p>
         </div>
-        {willExceed ? (
-          <div className="bg-warning/15 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-3.5 h-3.5" /> ההזמנה חורגת מהמסגרת — תדרוש אישור מנהל
-          </div>
-        ) : limit > 0 && remaining / limit < 0.2 ? (
-          <div className="bg-warning/20 text-warning-foreground text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
-            <AlertTriangle className="w-3.5 h-3.5" /> נותרו {formatCurrency(Math.max(0, remaining))} מהתקציב החודשי
-          </div>
-        ) : null}
       </header>
 
 
@@ -262,8 +258,9 @@ function Shop() {
             <div className="flex justify-between font-bold text-lg"><span>סה"כ</span><span>{formatCurrency(total)}</span></div>
             <div className="text-xs text-muted-foreground">כל המחירים {VAT_LABEL}</div>
             {willExceed && (
-              <div className="text-sm bg-warning/15 text-warning-foreground p-2 rounded flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> חורג מהמסגרת - דורש אישור מנהל
+              <div className="text-sm bg-destructive/10 text-destructive p-2 rounded flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                הסל חורג מהתקציב ב-{formatCurrency(exceededBy)}. יש להסיר פריטים לפני שליחת ההזמנה.
               </div>
             )}
           </div>
@@ -274,8 +271,8 @@ function Shop() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCheckout(false)}>ביטול</Button>
-            <Button onClick={submitOrder} disabled={placing || itemCount === 0}>
-              {placing ? <Loader2 className="w-4 h-4 animate-spin" /> : "אישור ושליחת הזמנה"}
+            <Button onClick={submitOrder} disabled={placing || itemCount === 0 || willExceed}>
+              {placing ? <Loader2 className="w-4 h-4 animate-spin" /> : willExceed ? "חריגה מהתקציב" : "אישור ושליחת הזמנה"}
             </Button>
           </DialogFooter>
         </DialogContent>
