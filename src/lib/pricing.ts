@@ -17,3 +17,11 @@ export function formatCurrency(amount: number) {
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+export function formatCurrencyShort(amount: number) {
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000) return `₪${(amount / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (abs >= 10_000) return `₪${Math.round(amount / 1000)}K`;
+  if (abs >= 1000) return `₪${(amount / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+  return `₪${Math.round(amount)}`;
+}
