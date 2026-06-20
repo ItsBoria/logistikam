@@ -63,15 +63,20 @@ type Pdf = jsPDF;
 function rtlText(pdf: Pdf, str: string, xRight: number, y: number, maxW?: number) {
   if (!str) return;
   if (maxW) {
+    // Wrap on logical text, then reorder each line visually for jsPDF.
     const lines = pdf.splitTextToSize(str, maxW) as string[];
     lines.forEach((ln, i) => {
-      pdf.text(ln, xRight, y + i * (pdf.getLineHeight() / pdf.internal.scaleFactor), {
+      pdf.text(toVisual(ln), xRight, y + i * (pdf.getLineHeight() / pdf.internal.scaleFactor), {
         align: "right",
       } as any);
     });
   } else {
-    pdf.text(str, xRight, y, { align: "right" } as any);
+    pdf.text(toVisual(str), xRight, y, { align: "right" } as any);
   }
+}
+
+function drawVisual(pdf: Pdf, str: string, x: number, y: number, align: "left" | "center" | "right") {
+  pdf.text(toVisual(str), x, y, { align } as any);
 }
 
 function wrappedHeight(pdf: Pdf, str: string, maxW: number): number {
