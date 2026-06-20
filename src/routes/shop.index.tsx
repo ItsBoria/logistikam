@@ -47,12 +47,19 @@ function Shop() {
     queryFn: () => fetchShop({ data: { pin: session!.pin } }),
   });
 
-  const [cart, setCart] = useState<CartMap>({});
+  const { cart, setQty, clear: clearCart } = useCart();
   const [checkout, setCheckout] = useState(false);
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
+
+  // Listen for global "open cart" event from nav pill
+  useEffect(() => {
+    const h = () => setCheckout(true);
+    window.addEventListener("open-checkout", h);
+    return () => window.removeEventListener("open-checkout", h);
+  }, []);
 
   // Prefill contact info from previous orders (per-team) and any reorder cart
   useEffect(() => {
