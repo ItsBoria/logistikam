@@ -43,8 +43,8 @@ export function CartProvider({ children, pin }: { children: ReactNode; pin: stri
     try { sessionStorage.setItem(storageKey(pin), JSON.stringify(cart)); } catch {}
   }, [cart, pin]);
 
-  const setQty = useCallback((id: string, q: number, max = Infinity) => {
-    const v = Math.max(0, Math.min(max, q));
+  const setQty = useCallback((id: string, q: number, max?: number) => {
+    const v = Math.max(0, Math.min(max ?? Infinity, q));
     setCart((c) => {
       const prev = c[id] || 0;
       const n = { ...c };
