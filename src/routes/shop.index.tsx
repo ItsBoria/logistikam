@@ -115,11 +115,6 @@ function Shop() {
   const remaining = limit > 0 ? limit - spent : Infinity;
   const willExceed = limit > 0 && (spent + total) > limit;
 
-  function setQty(id: string, q: number, max: number) {
-    const v = Math.max(0, Math.min(max, q));
-    setCart(c => { const n = { ...c }; if (v === 0) delete n[id]; else n[id] = v; return n; });
-  }
-
   async function submitOrder() {
     if (!phone || !name) { toast.error("יש למלא שם וטלפון"); return; }
     setPlacing(true);
@@ -132,7 +127,7 @@ function Shop() {
       toast.success(res.requires_approval
         ? "ההזמנה נשלחה ומחכה לאישור מנהל (חריגה ממסגרת)"
         : "ההזמנה נשלחה בהצלחה!");
-      setCart({}); setCheckout(false); setNotes("");
+      clearCart(); setCheckout(false); setNotes("");
       refetch();
     } catch (e: any) {
       toast.error(e.message || "שגיאה בשליחת הזמנה");
