@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminShell } from "@/components/admin-shell";
@@ -13,17 +13,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import {
   Download, Filter, X, Phone, User, Pencil, Plus, Minus, Trash2, Eraser,
   Search, FileText, FileType, CheckCircle2, PackageCheck, Truck, History, StickyNote, Info, ChevronDown,
+  SlidersHorizontal, ChevronUp, Loader2, ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { downloadOrderInvoicePDF, downloadOrderInvoiceDOCX } from "@/lib/invoice";
 import { SearchInput } from "@/components/ui/search-input";
+import { cn } from "@/lib/utils";
+import { useHideOnScroll } from "@/hooks/use-scroll-direction";
 
 export const Route = createFileRoute("/admin/orders")({
   ssr: false,
