@@ -1,72 +1,59 @@
-## 1. Inline budget & cart inside the navigation pills
+## Goal
+Redesign the search/filter toolbar in `src/routes/admin.orders.tsx` so it's cleaner, RTL-correct, collapses on scroll, and behaves well on mobile — without changing the underlying filter logic or query.
 
-**Remove** the floating `CartBudgetPill` (`src/components/cart-budget-pill.tsx`) from `src/routes/shop.index.tsx`. Delete its usage entirely — no floating cart/budget element remains.
+## Changes (single file: `src/routes/admin.orders.tsx`, plus one small helper)
 
-**Cart context** — new `src/lib/cart-context.tsx`:
-- React context holding `cart: Record<string, number>` + `setCart` persisted to `sessionStorage` (per-PIN key `cart:<pin>`).
-- Exposes `useCart()` returning `{ cart, setQty, clear, itemCount, total, products }`.
-- Wraps shop routes (provider mounted in `src/routes/shop.route.tsx` if exists, otherwise inside `__root.tsx` gated by pathname starting with `/shop`).
-- Shop page uses `useCart()` instead of local `useState<CartMap>` so the cart survives tab switches and feeds the nav pill.
-- Also exposes `useShopBudget()` reading the same `getShopData` query (shared queryKey `["shop", pin]`) so the pill and the shop screen share cache — no extra fetch.
+### 1. New `OrdersToolbar` component (in-file)
+A single Card-based toolbar that owns the visual layout. Props: all current filter state + setters + `resultCount`, `loading`, `onReset`, `onExport`.
 
-**`src/components/bottom-tab-bar.tsx`** — extend the `Tab` rendering for `/shop` (store) and add a new Cart pill:
-- Store pill: under the label show `נותר ₪2,450` (mobile shortens to `₪2.4K` via a `formatShort` helper). Smaller text (`text-[10px] opacity-80`), no badge.
-- Cart pill (new entry replacing nothing — added between Store and Replacements): icon `ShoppingCart`, label `סל`, subtitle `3 · ₪420` when non-empty, `0` when empty. Tapping opens checkout dialog (lift `setCheckout` via context event or navigate to `/shop?checkout=1`).
-- Active state still highlights the route; pill grows only when active (label visible). Inactive pills on mobile keep just the icon + tiny count badge to avoid overflow.
-- Two-line layout: icon on top row with label, secondary number on second line, using `flex-col` only when active or when value present; otherwise icon-only to keep bar compact.
-- Use `tabular-nums`, `formatCurrency` from `@/lib/pricing`, new `formatCurrencyShort` helper for mobile (`< 640px`) via Tailwind `sm:` variants — render both spans and toggle visibility, no JS breakpoint.
+Layout (desktop):
+- Row 1: preset pills (unchanged) + active-filter count badge on the right.
+- Row 2: grid with search (2 cols), team Select, status Select, date-from, date-to, sort Select (new — by date desc/asc, total desc/asc).
+- Row 3: active-filter chips (each removable with ×) + "נקה הכל" button + Export button.
 
-**Budget reactivity**: after `placeOrder` success in shop page call `queryClient.invalidateQueries(["shop", pin])` (already partially done via `refetch`) — the pill reads same query so it updates automatically. Same when admin adjusts budget elsewhere (already invalidates).
+Visuals: match existing admin cards (`Card`, `bg-card/95 backdrop-blur`, semantic tokens only). Even spacing via `gap-3`, no large empty areas.
 
-## 2. Header & navigation cleanup
+### 2. Collapse-on-scroll behavior
+Reuse `useHideOnScroll` pattern (already in `src/hooks/use-scroll-direction.ts`) to drive a `collapsed` boolean. Add a manual `expanded` override that the user can toggle.
 
-- Keep auto-hide-on-scroll header (already implemented).
-- Remove duplicate "warning banner" budget info in header when the pill already shows projected/remaining; keep only the critical "חורג" badge.
-- Ensure pill bar uses consistent sizing (`h-12`), shared `Tab` component for all variants.
-- Add `framer-motion` `layout` prop on active pill so width animates smoothly when label appears.
-- Remove `<div className="h-24" />` spacer duplication — keep single spacer at bottom equal to nav height + safe-area.
+- When `collapsed && !expanded`: render a slim sticky bar — search icon + inline `SearchInput` (compact), "סינונים: N" badge, "הרחב" button. Height ~48px.
+- When expanded: full toolbar.
+- Transition: `transition-[max-height,opacity] duration-200 ease-out`, respecting `prefers-reduced-motion` (skip transition).
+- Sticky container keeps a fixed min-height during the swap so the orders list doesn't jump.
+- Collapsed bar stays inside the normal sticky toolbar slot (`sticky top-2`), not a floating button.
 
-## 3. UX polish
+### 3. Search UX
+- Add 250ms debounce: local `searchInput` state + `useEffect` setTimeout → `setSearch`. Query key still uses debounced `search`.
+- Loading indicator: small spinner inside `SearchInput` or next to result count when `isLoading || isFetching`.
+- Empty state already exists; upgrade it to include a "נקה סינונים" button when any filter is active.
+- Scroll position: filters are already persisted via `localStorage`; add scroll restore by saving `window.scrollY` to `sessionStorage` on detail open and restoring on close (detail is a Dialog already, so scroll is preserved naturally — verify and only add restore if needed).
 
-- Add-to-cart feedback: in shop card, when `setQty` increases, trigger a tiny `motion.div` scale bump on the Cart pill (via context event emitter `cartBumpRef`).
-- Disable "אישור ושליחת הזמנה" when `willExceed && !approvalAllowed` with tooltip "חריגה מהתקציב — דרוש אישור מנהל" (current flow already requires approval — keep submission allowed but show clearer copy).
-- Show "נותר אחרי סל: ₪X" line inside the checkout dialog.
-- Skeleton: replace the full-screen `Loader2` with a lightweight grid skeleton (6 placeholder cards) in shop while loading.
-- Toasts already via `sonner` — keep concise.
+### 4. Sort
+Add `sort` state (`"date_desc" | "date_asc" | "total_desc" | "total_asc"`), default `date_desc`. Apply client-side via `useMemo` over `orders` (server `listOrders` already returns full list). Include `sort` in `FILTER_STORAGE_KEY` payload.
 
-## 4. PDF Hebrew/RTL fix
+### 5. Active filters
+Compute `activeFilters` array from state (team name, status label, date range, search text, non-default sort). Render as chips with × that clears just that filter. Badge count = `activeFilters.length`.
 
-Current PDF uses `jsPDF` with `isInputRtl: true`. jsPDF's bidi support is unreliable for mixed Hebrew/digits and is the root cause of reversed output in the saved file. Switch the PDF path to **pdfmake** with the Heebo TTF and proper `rtl` paragraph property, OR use **pdf-lib + @pdf-lib/fontkit** with manual bidi via `bidi-js`.
+### 6. Mobile
+- Below `sm`: show only the compact search bar + a "סינונים (N)" button that opens an existing `Sheet` (`SheetContent side="right"` — correct for RTL since Sheet auto-mirrors with `dir`).
+- Sheet contains: presets, team, status, date range, sort, reset.
+- Ensure no horizontal overflow: `min-w-0` on flex children, `overflow-x-hidden` on toolbar container.
+- Touch targets ≥ 44px on filter button and chips.
 
-Chosen approach: **pdfmake** (smallest change, supports `alignment: 'right'` and a doc-level `rtl: true` extension via `defaultStyle.alignment`).
-- Add deps: `pdfmake`, `bidi-js` (for shaping if needed).
-- New `src/lib/pdf-rtl.ts`: registers Heebo font with pdfmake VFS, exposes `createRtlPdf(docDef)`.
-- Rewrite `downloadWeeklyPDF` in `src/lib/weekly-export.ts` to build a pdfmake `TableLayout` with columns in logical order and `layout: { defaultBorder: true }`, set `pageOrientation: 'landscape'`, every text node carries `alignment: 'right'`, `font: 'Heebo'`, and uses pdfmake's built-in bidi (handles Hebrew + Latin/digits correctly without manual reversal).
-- Column visual RTL: pdfmake renders LTR by default; we reverse the day cells array so Sunday is on the right visually, while keeping label column at the far right via `[labelCell, ...daysReversed]` then `alignment: 'right'` on the table widths.
-- All titles, mission text, notes, day headers, "גורמים משפיעים" rendered via pdfmake `text` nodes — no manual string reversal anywhere.
-- DOCX already uses `bidirectional: true` + `rightToLeft: true` correctly — keep as is but verify Heebo/Arial Hebrew font; switch font to `David` or keep `Arial` (Word substitutes a Hebrew-capable face). No change required beyond confirming output.
-- Verification: after build, open `/admin/calendar`, export PDF, inspect with `pdftotext` and `pdftoppm` rendering to confirm correct order.
+### 7. RTL/A11y
+- Use logical Tailwind utilities already in use (`ml-2`, etc. — keep existing convention since the app is RTL-first).
+- Add `aria-label` to search input, filter button, expand/collapse button, each chip's × button, sort select.
+- Add `aria-live="polite"` region with "נמצאו N הזמנות" so screen readers hear updates.
+- Honor `prefers-reduced-motion: reduce` → disable transitions.
+- Keyboard: expand/collapse button is a normal `<Button>`; chips' × are buttons; Sheet has built-in focus trap.
 
-## 5. Files
+### 8. What stays unchanged
+- `listOrders` server function, query keys, statuses, edit/delete/cleanup dialogs, accordion list, invoice export, presets logic.
+- Storage key bumped to `admin-orders-filters-v2` to include `sort` cleanly (old key ignored gracefully).
 
-**New**
-- `src/lib/cart-context.tsx`
-- `src/lib/pdf-rtl.ts`
-- `src/lib/format-currency-short.ts` (or extend `src/lib/pricing.ts`)
-- `src/components/shop-skeleton.tsx`
+## Files touched
+- `src/routes/admin.orders.tsx` — toolbar redesign, collapse, debounce, sort, chips, mobile sheet.
+- No new dependencies. No backend changes.
 
-**Edited**
-- `src/components/bottom-tab-bar.tsx` — add Store-with-budget and Cart pills
-- `src/routes/shop.index.tsx` — drop `CartBudgetPill`, consume `useCart`, wrap in provider (or do at route layout), checkout dialog tweaks
-- `src/routes/__root.tsx` or new `src/routes/shop.route.tsx` — mount `CartProvider` for `/shop/*`
-- `src/lib/weekly-export.ts` — rewrite PDF using pdfmake; keep DOCX
-- `src/lib/pricing.ts` — add `formatCurrencyShort`
-- `package.json` / `bun.lock` — add `pdfmake`
-
-**Deleted**
-- `src/components/cart-budget-pill.tsx`
-
-## 6. Acceptance verification
-- Manual: cart count + budget visible in pills; navigating to `/shop/orders` and back preserves cart; placing an order updates budget instantly.
-- PDF: open exported file in a PDF viewer (and via `pdftoppm` in CI) — Hebrew reads right-to-left with correct word/punctuation/digit order.
-- No floating cart/budget element exists in the DOM.
+## Out of scope
+- Order list rendering, edit/delete flows, business logic, server function signatures.
