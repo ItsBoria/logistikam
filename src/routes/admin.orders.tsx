@@ -280,69 +280,262 @@ function OrdersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
+      <div className="flex items-start justify-between flex-wrap gap-2">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">הזמנות</h1>
-          <p className="text-sm text-muted-foreground">{orders?.length ?? 0} הזמנות · סה״כ ₪{totalSum.toFixed(0)}</p>
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            {orders?.length ?? 0} הזמנות · סה״כ ₪{totalSum.toFixed(0)}
+            {loading && <Loader2 className="inline-block w-3 h-3 mr-2 animate-spin" aria-label="טוען" />}
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => setCleanupOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setCleanupOpen(true)}>
             <Eraser className="w-4 h-4 ml-2" /> מחיקת הזמנות ישנות
-          </Button>
-          <Button onClick={exportExcel} disabled={!orders?.length}>
-            <Download className="w-4 h-4 ml-2" /> ייצוא לאקסל
           </Button>
         </div>
       </div>
 
-      <Card className="p-4 space-y-3 sticky top-2 z-10 bg-card/95 backdrop-blur">
-        <div className="flex items-center gap-2 flex-wrap">
-          {([
-            ["all", "הכל"], ["today", "היום"], ["week", "השבוע"],
-            ["awaiting", "ממתינות לאישור"], ["ready", "מוכנות לאיסוף"],
-          ] as Array<[Preset, string]>).map(([k, label]) => (
-            <Button key={k} size="sm" variant={preset === k ? "default" : "outline"} onClick={() => applyPreset(k)}>
-              {label}
-            </Button>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
-          <div className="md:col-span-2">
-            <SearchInput
-              containerClassName="max-w-none"
-              placeholder="חפש לפי מס׳, צוות, מזמין, טלפון או מוצר"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onClear={() => setSearch("")}
-            />
-          </div>
-          <Select value={teamId} onValueChange={setTeamId}>
-            <SelectTrigger><SelectValue placeholder="צוות" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">כל הצוותים</SelectItem>
-              {teams?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger><SelectValue placeholder="סטטוס" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">כל הסטטוסים</SelectItem>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input type="date" value={from} onChange={(e) => { setPreset("all"); setFrom(e.target.value); }} />
-          <Input type="date" value={to} onChange={(e) => { setPreset("all"); setTo(e.target.value); }} />
-        </div>
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Filter className="w-3 h-3" /> סינון נשמר אוטומטית בדפדפן</span>
-          <Button variant="ghost" size="sm" onClick={resetFilters}><X className="w-3 h-3 ml-1" /> נקה</Button>
-        </div>
-      </Card>
+      {/* Sticky filter toolbar — collapses on scroll */}
+      <div className="sticky top-2 z-20">
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-200 ease-out motion-reduce:transition-none",
+            collapsed ? "max-h-[64px] opacity-100" : "max-h-[800px] opacity-100",
+          )}
+        >
+          {collapsed ? (
+            <Card className="p-2 bg-card/95 backdrop-blur flex items-center gap-2">
+              <SearchInput
+                containerClassName="flex-1 max-w-none min-w-0"
+                placeholder="חפש הזמנות"
+                aria-label="חיפוש הזמנות"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onClear={() => setSearchInput("")}
+              />
+              {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" aria-hidden />}
+              {activeCount > 0 && (
+                <span className="text-xs bg-primary/15 text-primary rounded-full px-2 py-0.5 shrink-0 font-medium">
+                  סינונים: {activeCount}
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setManualExpanded(true)}
+                aria-label="הרחב סינונים"
+              >
+                <SlidersHorizontal className="w-4 h-4 ml-1" />
+                <span className="hidden sm:inline">הרחב</span>
+              </Button>
+            </Card>
+          ) : (
+            <Card className="p-4 space-y-3 bg-card/95 backdrop-blur">
+              {/* Row 1: presets + collapse toggle + active count */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  {([
+                    ["all", "הכל"], ["today", "היום"], ["week", "השבוע"],
+                    ["awaiting", "ממתינות לאישור"], ["ready", "מוכנות לאיסוף"],
+                  ] as Array<[Preset, string]>).map(([k, label]) => (
+                    <Button key={k} size="sm" variant={preset === k ? "default" : "outline"} onClick={() => applyPreset(k)}>
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeCount > 0 && (
+                    <span className="text-xs bg-primary/15 text-primary rounded-full px-2 py-0.5 font-medium">
+                      {activeCount} סינונים פעילים
+                    </span>
+                  )}
+                  {manualExpanded && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setManualExpanded(false)}
+                      aria-label="כווץ סינונים"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
 
-      {isLoading ? <Card className="p-12 text-center">טוען...</Card> :
-        !orders?.length ? <Card className="p-12 text-center text-muted-foreground">אין הזמנות</Card> :
+              {/* Row 2: desktop filter grid */}
+              <div className="hidden md:grid grid-cols-2 lg:grid-cols-12 gap-3">
+                <div className="lg:col-span-4">
+                  <SearchInput
+                    containerClassName="max-w-none"
+                    placeholder="חפש לפי מס׳, צוות, מזמין, טלפון או מוצר"
+                    aria-label="חיפוש הזמנות"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onClear={() => setSearchInput("")}
+                  />
+                </div>
+                <Select value={teamId} onValueChange={setTeamId}>
+                  <SelectTrigger className="lg:col-span-2" aria-label="צוות"><SelectValue placeholder="צוות" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">כל הצוותים</SelectItem>
+                    {teams?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="lg:col-span-2" aria-label="סטטוס"><SelectValue placeholder="סטטוס" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">כל הסטטוסים</SelectItem>
+                    {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Input type="date" className="lg:col-span-2" aria-label="מתאריך" value={from} onChange={(e) => { setPreset("all"); setFrom(e.target.value); }} />
+                <Input type="date" className="lg:col-span-2" aria-label="עד תאריך" value={to} onChange={(e) => { setPreset("all"); setTo(e.target.value); }} />
+                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                  <SelectTrigger className="lg:col-span-4" aria-label="מיון">
+                    <ArrowUpDown className="w-3.5 h-3.5 ml-1" />
+                    <SelectValue placeholder="מיון" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(SORT_LABEL) as Array<[SortKey, string]>).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Mobile: search + filter sheet trigger */}
+              <div className="grid md:hidden grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <SearchInput
+                  containerClassName="max-w-none min-w-0"
+                  placeholder="חפש הזמנות"
+                  aria-label="חיפוש הזמנות"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onClear={() => setSearchInput("")}
+                />
+                <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="sm" aria-label="פתח סינונים" className="min-h-11">
+                      <SlidersHorizontal className="w-4 h-4 ml-1" />
+                      סינונים
+                      {activeCount > 0 && (
+                        <span className="mr-1 text-xs bg-primary text-primary-foreground rounded-full px-1.5">
+                          {activeCount}
+                        </span>
+                      )}
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-[90%] sm:max-w-md overflow-y-auto" dir="rtl">
+                    <SheetHeader><SheetTitle>סינונים</SheetTitle></SheetHeader>
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground">צוות</label>
+                        <Select value={teamId} onValueChange={setTeamId}>
+                          <SelectTrigger><SelectValue placeholder="צוות" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">כל הצוותים</SelectItem>
+                            {teams?.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">סטטוס</label>
+                        <Select value={status} onValueChange={setStatus}>
+                          <SelectTrigger><SelectValue placeholder="סטטוס" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">כל הסטטוסים</SelectItem>
+                            {Object.entries(STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">מתאריך</label>
+                          <Input type="date" value={from} onChange={(e) => { setPreset("all"); setFrom(e.target.value); }} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">עד תאריך</label>
+                          <Input type="date" value={to} onChange={(e) => { setPreset("all"); setTo(e.target.value); }} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">מיון</label>
+                        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                          <SelectTrigger><SelectValue placeholder="מיון" /></SelectTrigger>
+                          <SelectContent>
+                            {(Object.entries(SORT_LABEL) as Array<[SortKey, string]>).map(([k, v]) => (
+                              <SelectItem key={k} value={k}>{v}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2 pt-2">
+                        <Button variant="outline" className="flex-1" onClick={resetFilters}>נקה הכל</Button>
+                        <Button className="flex-1" onClick={() => setMobileFiltersOpen(false)}>החל</Button>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+
+              {/* Row 3: active filter chips + actions */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  {activeFilters.map((f) => (
+                    <span
+                      key={f.key}
+                      className="inline-flex items-center gap-1 rounded-full bg-secondary text-secondary-foreground text-xs px-2 py-1"
+                    >
+                      {f.label}
+                      <button
+                        type="button"
+                        onClick={f.onClear}
+                        aria-label={`הסר סינון ${f.label}`}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {activeCount === 0 && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Filter className="w-3 h-3" /> אין סינונים פעילים · נשמר אוטומטית
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={resetFilters} aria-label="נקה את כל הסינונים">
+                      <X className="w-3 h-3 ml-1" /> נקה הכל
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={exportExcel} disabled={!orders?.length}>
+                    <Download className="w-4 h-4 ml-1" /> ייצוא לאקסל
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <Card className="p-12 text-center flex items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> טוען...
+        </Card>
+      ) : !sortedOrders?.length ? (
+        <Card className="p-12 text-center text-muted-foreground space-y-3">
+          <p>אין הזמנות התואמות לסינון.</p>
+          {activeCount > 0 && (
+            <Button variant="outline" size="sm" onClick={resetFilters}>
+              <X className="w-3 h-3 ml-1" /> נקה סינונים
+            </Button>
+          )}
+        </Card>
+      ) : (
         <Accordion type="multiple" className="space-y-2">
-          {orders.map((o: any) => {
+          {sortedOrders.map((o: any) => {
             const ageH = (Date.now() - new Date(o.created_at).getTime()) / 3600000;
             const stuck = (o.status === "awaiting_approval" && ageH > 24) || (o.status === "ready" && ageH > 48);
             return (
