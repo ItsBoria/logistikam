@@ -85,7 +85,9 @@ function OrdersPage() {
   const [status, setStatus] = useState<string>("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("date_desc");
   const [preset, setPreset] = useState<Preset>("all");
   const [editing, setEditing] = useState<any>(null);
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
@@ -96,6 +98,10 @@ function OrdersPage() {
   });
   const [cleanupOnlyDone, setCleanupOnlyDone] = useState(true);
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [manualExpanded, setManualExpanded] = useState(false);
+  const hiddenByScroll = useHideOnScroll(80);
+  const collapsed = hiddenByScroll && !manualExpanded;
 
   // Load saved filters once
   useEffect(() => {
@@ -107,16 +113,28 @@ function OrdersPage() {
         if (f.status) setStatus(f.status);
         if (f.from) setFrom(f.from);
         if (f.to) setTo(f.to);
+        if (f.sort) setSort(f.sort);
       }
     } catch {}
   }, []);
   // Persist
   useEffect(() => {
-    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ teamId, status, from, to }));
-  }, [teamId, status, from, to]);
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ teamId, status, from, to, sort }));
+  }, [teamId, status, from, to, sort]);
+
+  // Debounce search input → committed search (250ms)
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // When user scrolls back to top, drop manual-expand override
+  useEffect(() => {
+    if (!hiddenByScroll) setManualExpanded(false);
+  }, [hiddenByScroll]);
 
   const { data: teams } = useQuery({ queryKey: ["admin-teams"], queryFn: () => teamsFn() });
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading, isFetching } = useQuery({
     queryKey: ["admin-orders", teamId, status, from, to, search],
     queryFn: () => listFn({ data: {
       team_id: teamId === "all" ? null : teamId,
@@ -126,6 +144,21 @@ function OrdersPage() {
       search: search || null,
     } }),
   });
+
+  const sortedOrders = useMemo(() => {
+    if (!orders) return orders;
+    const arr = [...orders];
+    arr.sort((a: any, b: any) => {
+      switch (sort) {
+        case "date_asc": return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "total_desc": return Number(b.total) - Number(a.total);
+        case "total_asc": return Number(a.total) - Number(b.total);
+        case "date_desc":
+        default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+    return arr;
+  }, [orders, sort]);
 
   function applyPreset(p: Preset) {
     setPreset(p);
