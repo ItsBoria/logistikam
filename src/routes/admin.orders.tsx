@@ -54,7 +54,14 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 type Preset = "all" | "today" | "week" | "awaiting" | "ready";
-const FILTER_STORAGE_KEY = "admin-orders-filters-v1";
+type SortKey = "date_desc" | "date_asc" | "total_desc" | "total_asc";
+const FILTER_STORAGE_KEY = "admin-orders-filters-v2";
+const SORT_LABEL: Record<SortKey, string> = {
+  date_desc: "תאריך (חדש→ישן)",
+  date_asc: "תאריך (ישן→חדש)",
+  total_desc: "סכום (גבוה→נמוך)",
+  total_asc: "סכום (נמוך→גבוה)",
+};
 
 function todayIso() {
   const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString().slice(0, 10);
