@@ -621,7 +621,7 @@ function OrdersPage() {
           );
           })}
         </Accordion>
-      }
+      )}
 
       {/* Detail drawer */}
       <OrderDetailDrawer
