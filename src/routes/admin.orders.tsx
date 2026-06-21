@@ -250,7 +250,22 @@ function OrdersPage() {
     } catch (e: any) { toast.error(e.message ?? "שגיאה בייצוא"); }
   }
 
-  function resetFilters() { setPreset("all"); setTeamId("all"); setStatus("all"); setFrom(""); setTo(""); setSearch(""); }
+  function resetFilters() {
+    setPreset("all"); setTeamId("all"); setStatus("all");
+    setFrom(""); setTo(""); setSearchInput(""); setSearch(""); setSort("date_desc");
+  }
+
+  const teamName = (id: string) => teams?.find((t: any) => t.id === id)?.name ?? id;
+  const activeFilters: Array<{ key: string; label: string; onClear: () => void }> = [];
+  if (teamId !== "all") activeFilters.push({ key: "team", label: `צוות: ${teamName(teamId)}`, onClear: () => setTeamId("all") });
+  if (status !== "all") activeFilters.push({ key: "status", label: `סטטוס: ${STATUS_LABEL[status] ?? status}`, onClear: () => setStatus("all") });
+  if (from) activeFilters.push({ key: "from", label: `מתאריך: ${from}`, onClear: () => { setPreset("all"); setFrom(""); } });
+  if (to) activeFilters.push({ key: "to", label: `עד תאריך: ${to}`, onClear: () => { setPreset("all"); setTo(""); } });
+  if (search) activeFilters.push({ key: "search", label: `חיפוש: ${search}`, onClear: () => { setSearchInput(""); setSearch(""); } });
+  if (sort !== "date_desc") activeFilters.push({ key: "sort", label: `מיון: ${SORT_LABEL[sort]}`, onClear: () => setSort("date_desc") });
+  const activeCount = activeFilters.length;
+  const loading = isLoading || isFetching;
+
 
   const totalSum = useMemo(() => (orders ?? []).reduce((s, o: any) => s + Number(o.total), 0), [orders]);
   const editTotal = useMemo(() => editing?.items.reduce((s: number, it: any) => s + Number(it.price) * Number(it.quantity), 0) ?? 0, [editing]);
